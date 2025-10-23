@@ -5,9 +5,9 @@ import "./globals.css";
 import { Providers } from "./providers";
 import { Toaster } from "@/components/ui/toaster";
 import { Sidebar } from "@/components/sidebar";
-import { ThemeToggle } from "@/components/ui/theme-toggle";
+import { Header } from "@/components/header";
 import { Button } from "@/components/ui/button";
-import { Bell, Search, PanelLeftClose, PanelLeft, Github, Trophy } from "lucide-react";
+import { Github, Trophy } from "lucide-react";
 import { useState } from "react";
 
 const inter = Inter({ subsets: ["latin"] });
@@ -26,30 +26,10 @@ export default function RootLayout({
           <div className="flex min-h-screen">
             <Sidebar isCollapsed={isSidebarCollapsed} />
             <div className="flex-1 flex flex-col">
-              <div className="flex h-[60px] items-center justify-between border-b px-6 bg-background">
-                <div className="flex items-center gap-4">
-                  <Button 
-                    variant="ghost" 
-                    size="icon"
-                    onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-                  >
-                    {isSidebarCollapsed ? (
-                      <PanelLeft className="h-5 w-5" />
-                    ) : (
-                      <PanelLeftClose className="h-5 w-5" />
-                    )}
-                  </Button>
-                  <Button variant="ghost" size="icon">
-                    <Bell className="h-5 w-5" />
-                  </Button>
-                  <Button variant="ghost" size="icon">
-                    <Search className="h-5 w-5" />
-                  </Button>
-                </div>
-                <div className="flex items-center gap-2">
-                  <ThemeToggle />
-                </div>
-              </div>
+              <Header 
+                isSidebarCollapsed={isSidebarCollapsed}
+                onToggleSidebar={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+              />
               <main className="flex-1 bg-background">
                 <div className="container mx-auto p-6">
                   {children}

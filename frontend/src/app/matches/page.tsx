@@ -12,11 +12,13 @@ import { Swords, Calendar, MapPin, ChevronRight, Trash2, PlusCircle } from 'luci
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useToast } from '@/components/ui/use-toast'
 import { useState, useMemo } from 'react'
+import { useAuth } from '@/contexts/AuthContext'
 
 // Maç durumu için tip tanımı
 type MatchStatus = 'scheduled' | 'in_progress' | 'completed' | 'cancelled';
 
 export default function MatchesPage() {
+  const { isAdmin } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [statusFilter, setStatusFilter] = useState<'all' | MatchStatus>('all');
@@ -187,34 +189,38 @@ export default function MatchesPage() {
               <SelectItem value="cancelled">İptal Edilen</SelectItem>
             </SelectContent>
           </Select>
-          {sortedAndFilteredMatches.length > 0 ? (
+          {isAdmin && (
             <>
-              <Link href="/matches/knockout" className="w-full sm:w-auto">
-                <Button variant="secondary" className="w-full gap-2 bg-purple-100 hover:bg-purple-200 dark:bg-purple-900 dark:hover:bg-purple-800 text-purple-700 dark:text-purple-100 border-purple-200 dark:border-purple-800">
-                  <Swords className="h-4 w-4" />
-                  Eleme Aşaması Oluştur
-                </Button>
-              </Link>
-              <Button 
-                variant="destructive" 
-                onClick={() => handleDeleteFixture(
-                  typeof sortedAndFilteredMatches[0].tournament === 'string' 
-                    ? sortedAndFilteredMatches[0].tournament 
-                    : sortedAndFilteredMatches[0].tournament._id
-                )}
-                className="w-full sm:w-auto"
-              >
-                <Trash2 className="w-4 h-4 mr-2" />
-                Fikstürü Sil
-              </Button>
-              <Link href="/matches/schedule" className="w-full sm:w-auto">
-                <Button className="w-full">Fikstür Oluştur</Button>
-              </Link>
+              {sortedAndFilteredMatches.length > 0 ? (
+                <>
+                  <Link href="/matches/knockout" className="w-full sm:w-auto">
+                    <Button variant="secondary" className="w-full gap-2 bg-purple-100 hover:bg-purple-200 dark:bg-purple-900 dark:hover:bg-purple-800 text-purple-700 dark:text-purple-100 border-purple-200 dark:border-purple-800">
+                      <Swords className="h-4 w-4" />
+                      Eleme Aşaması Oluştur
+                    </Button>
+                  </Link>
+                  <Button 
+                    variant="destructive" 
+                    onClick={() => handleDeleteFixture(
+                      typeof sortedAndFilteredMatches[0].tournament === 'string' 
+                        ? sortedAndFilteredMatches[0].tournament 
+                        : sortedAndFilteredMatches[0].tournament._id
+                    )}
+                    className="w-full sm:w-auto"
+                  >
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    Fikstürü Sil
+                  </Button>
+                  <Link href="/matches/schedule" className="w-full sm:w-auto">
+                    <Button className="w-full">Fikstür Oluştur</Button>
+                  </Link>
+                </>
+              ) : (
+                <Link href="/matches/schedule" className="w-full sm:w-auto">
+                  <Button className="w-full">Fikstür Oluştur</Button>
+                </Link>
+              )}
             </>
-          ) : (
-            <Link href="/matches/schedule" className="w-full sm:w-auto">
-              <Button className="w-full">Fikstür Oluştur</Button>
-            </Link>
           )}
         </div>
       </div>
@@ -288,7 +294,7 @@ export default function MatchesPage() {
                             <ChevronRight className="h-4 w-4" />
                           </Button>
                         </Link>
-                        {match.status === 'scheduled' && (
+                        {isAdmin && match.status === 'scheduled' && (
                           <Link href={`/matches/${match._id}/edit`} className="w-full sm:w-auto">
                             <Button size="sm" className="w-full">Düzenle</Button>
                           </Link>
@@ -305,11 +311,13 @@ export default function MatchesPage() {
         <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
           <div className="text-muted-foreground text-center">
             <p>Henüz oluşturulmuş maç bulunmuyor.</p>
-            <p className="text-sm">Turnuva seçerek otomatik fikstür oluşturabilirsiniz.</p>
+            {isAdmin && <p className="text-sm">Turnuva seçerek otomatik fikstür oluşturabilirsiniz.</p>}
           </div>
-          <Link href="/matches/schedule">
-            <Button>Fikstür Oluştur</Button>
-          </Link>
+          {isAdmin && (
+            <Link href="/matches/schedule">
+              <Button>Fikstür Oluştur</Button>
+            </Link>
+          )}
         </div>
       )}
     </div>

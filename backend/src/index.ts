@@ -8,6 +8,7 @@ import teamRoutes from './routes/team';
 import tournamentRoutes from './routes/tournament';
 import matchRoutes from './routes/match';
 import playerRoutes from './routes/player';
+import authRoutes from './routes/auth';
 
 // Routes will be imported here
 // import matchRoutes from './routes/match';
@@ -57,6 +58,7 @@ mongoose.connection.on('disconnected', () => {
 });
 
 // Routes
+app.use('/api/auth', authRoutes);
 app.use('/api/teams', teamRoutes);
 app.use('/api/tournaments', tournamentRoutes);
 app.use('/api/matches', matchRoutes);

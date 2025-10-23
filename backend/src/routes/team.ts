@@ -10,34 +10,23 @@ import {
   removePlayer,
   seedTeams
 } from '../controllers/team';
+import { authenticate, isAdmin, optionalAuth } from '../middleware/auth';
 
 const router = express.Router();
 
-// Takımları listele
-router.get('/', getAllTeams);
+// Public routes (accessible to everyone)
+router.get('/', optionalAuth, getAllTeams);
+router.get('/:id', optionalAuth, getTeamById);
 
-// Tek takım getir
-router.get('/:id', getTeamById);
+// Protected routes (admin only)
+router.post('/', authenticate, isAdmin, createTeam);
+router.put('/:id', authenticate, isAdmin, updateTeam);
+router.delete('/:id', authenticate, isAdmin, deleteTeam);
+router.post('/:id/players', authenticate, isAdmin, addPlayer);
+router.put('/:id/players/:playerId', authenticate, isAdmin, updatePlayer);
+router.delete('/:id/players/:playerId', authenticate, isAdmin, removePlayer);
 
-// Yeni takım oluştur
-router.post('/', createTeam);
-
-// Takım güncelle
-router.put('/:id', updateTeam);
-
-// Takım sil
-router.delete('/:id', deleteTeam);
-
-// Oyuncu ekle
-router.post('/:id/players', addPlayer);
-
-// Oyuncu güncelle
-router.put('/:id/players/:playerId', updatePlayer);
-
-// Oyuncu sil
-router.delete('/:id/players/:playerId', removePlayer);
-
-// Seed teams
-router.get('/seed', seedTeams);
+// Seed teams (admin only)
+router.get('/seed', authenticate, isAdmin, seedTeams);
 
 export default router;

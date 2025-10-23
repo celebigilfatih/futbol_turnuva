@@ -10,8 +10,10 @@ import { Badge } from '@/components/ui/badge'
 import { Users, Trophy, Goal, ChevronRight, Shield, Trash2 } from 'lucide-react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useToast } from '@/components/ui/use-toast'
+import { useAuth } from '@/contexts/AuthContext'
 
 export default function TeamsPage() {
+  const { isAdmin } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -88,9 +90,11 @@ export default function TeamsPage() {
               <SelectItem value="wins">Galibiyete Göre</SelectItem>
             </SelectContent>
           </Select>
-          <Link href="/teams/create" className="w-full sm:w-auto">
-            <Button className="w-full">Yeni Takım Oluştur</Button>
-          </Link>
+          {isAdmin && (
+            <Link href="/teams/create" className="w-full sm:w-auto">
+              <Button className="w-full">Yeni Takım Oluştur</Button>
+            </Link>
+          )}
         </div>
       </div>
 
@@ -154,19 +158,23 @@ export default function TeamsPage() {
                       <ChevronRight className="h-4 w-4" />
                     </Button>
                   </Link>
-                  <Link href={`/teams/${team._id}/edit`} className="w-full sm:w-auto">
-                    <Button size="sm" className="w-full">Düzenle</Button>
-                  </Link>
+                  {isAdmin && (
+                    <Link href={`/teams/${team._id}/edit`} className="w-full sm:w-auto">
+                      <Button size="sm" className="w-full">Düzenle</Button>
+                    </Link>
+                  )}
                 </div>
-                <Button 
-                  variant="ghost" 
-                  size="icon"
-                  onClick={() => handleDelete(team._id)}
-                  disabled={deleteMutation.isPending}
-                  className="h-8 w-8 bg-red-100 dark:bg-red-900/20 text-destructive hover:text-destructive-foreground hover:bg-destructive transition-colors"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
+                {isAdmin && (
+                  <Button 
+                    variant="ghost" 
+                    size="icon"
+                    onClick={() => handleDelete(team._id)}
+                    disabled={deleteMutation.isPending}
+                    className="h-8 w-8 bg-red-100 dark:bg-red-900/20 text-destructive hover:text-destructive-foreground hover:bg-destructive transition-colors"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                )}
               </CardFooter>
             </Card>
           ))}
@@ -178,9 +186,11 @@ export default function TeamsPage() {
           <div className="text-muted-foreground mb-6">
             Turnuvaya katılacak takımları oluşturmak için yeni takım ekleyin.
           </div>
-          <Link href="/teams/create">
-            <Button>İlk Takımı Oluştur</Button>
-          </Link>
+          {isAdmin && (
+            <Link href="/teams/create">
+              <Button>İlk Takımı Oluştur</Button>
+            </Link>
+          )}
         </div>
       )}
     </div>

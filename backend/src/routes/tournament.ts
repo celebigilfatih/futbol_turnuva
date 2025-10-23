@@ -12,40 +12,23 @@ import {
   generateFixture,
   deleteFixture
 } from '../controllers/tournament';
+import { authenticate, isAdmin, optionalAuth } from '../middleware/auth';
 
 const router = express.Router();
 
-// Turnuvaları listele
-router.get('/', getAllTournaments);
+// Public routes (accessible to everyone)
+router.get('/', optionalAuth, getAllTournaments);
+router.get('/:id', optionalAuth, getTournamentById);
+router.get('/:id/groups', optionalAuth, getGroups);
 
-// Tek turnuva getir
-router.get('/:id', getTournamentById);
-
-// Yeni turnuva oluştur
-router.post('/', createTournament);
-
-// Turnuva güncelle
-router.put('/:id', updateTournament);
-
-// Turnuva sil
-router.delete('/:id', deleteTournament);
-
-// Turnuva durumunu güncelle
-router.put('/:id/status', updateTournamentStatus);
-
-// Turnuvaya takım ekle
-router.post('/:id/teams', addTeam);
-
-// Turnuvadan takım çıkar
-router.delete('/:id/teams/:teamId', removeTeam);
-
-// Turnuva gruplarını getir
-router.get('/:id/groups', getGroups);
-
-// Turnuva fikstürünü oluştur
-router.post('/:id/fixture', generateFixture);
-
-// Turnuva fikstürünü sil
-router.delete('/:id/fixture', deleteFixture);
+// Protected routes (admin only)
+router.post('/', authenticate, isAdmin, createTournament);
+router.put('/:id', authenticate, isAdmin, updateTournament);
+router.delete('/:id', authenticate, isAdmin, deleteTournament);
+router.put('/:id/status', authenticate, isAdmin, updateTournamentStatus);
+router.post('/:id/teams', authenticate, isAdmin, addTeam);
+router.delete('/:id/teams/:teamId', authenticate, isAdmin, removeTeam);
+router.post('/:id/fixture', authenticate, isAdmin, generateFixture);
+router.delete('/:id/fixture', authenticate, isAdmin, deleteFixture);
 
 export default router; 

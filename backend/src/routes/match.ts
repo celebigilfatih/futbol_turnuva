@@ -11,37 +11,22 @@ import {
   updateMatchStats,
   getStandings
 } from '../controllers/match';
+import { authenticate, isAdmin, optionalAuth } from '../middleware/auth';
 
 const router = express.Router();
 
-// Tüm maçları listele
-router.get('/', getAllMatches);
+// Public routes (accessible to everyone)
+router.get('/', optionalAuth, getAllMatches);
+router.get('/tournament/:tournamentId', optionalAuth, getMatchesByTournament);
+router.get('/standings/:tournamentId', optionalAuth, getStandings);
+router.get('/:id', optionalAuth, getMatchById);
 
-// Turnuvaya göre maçları listele
-router.get('/tournament/:tournamentId', getMatchesByTournament);
-
-// Tek maç getir
-router.get('/:id', getMatchById);
-
-// Yeni maç oluştur
-router.post('/', createMatch);
-
-// Maç güncelle
-router.put('/:id', updateMatch);
-
-// Maç sil
-router.delete('/:id', deleteMatch);
-
-// Maç durumunu güncelle
-router.put('/:id/status', updateMatchStatus);
-
-// Skor güncelle
-router.put('/:id/score', updateMatchScore);
-
-// İstatistikleri güncelle
-router.put('/:id/stats', updateMatchStats);
-
-// Turnuva durumu
-router.get('/standings/:tournamentId', getStandings);
+// Protected routes (admin only)
+router.post('/', authenticate, isAdmin, createMatch);
+router.put('/:id', authenticate, isAdmin, updateMatch);
+router.delete('/:id', authenticate, isAdmin, deleteMatch);
+router.put('/:id/status', authenticate, isAdmin, updateMatchStatus);
+router.put('/:id/score', authenticate, isAdmin, updateMatchScore);
+router.put('/:id/stats', authenticate, isAdmin, updateMatchStats);
 
 export default router; 

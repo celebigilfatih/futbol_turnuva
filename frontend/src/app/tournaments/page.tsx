@@ -10,10 +10,12 @@ import { useToast } from '@/components/ui/use-toast'
 import { Badge } from '@/components/ui/badge'
 import { Trophy, Users, Calendar, Clock, MapPin, Swords } from 'lucide-react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { useAuth } from '@/contexts/AuthContext'
 
 export default function TournamentsPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { isAdmin } = useAuth();
 
   const { data: tournamentsResponse, isLoading } = useQuery({
     queryKey: ['tournaments'],
@@ -96,9 +98,11 @@ export default function TournamentsPage() {
               <SelectItem value="completed">Tamamlandı</SelectItem>
             </SelectContent>
           </Select>
-          <Link href="/tournaments/create" className="w-full sm:w-auto">
-            <Button className="w-full">Yeni Turnuva Oluştur</Button>
-          </Link>
+          {isAdmin && (
+            <Link href="/tournaments/create" className="w-full sm:w-auto">
+              <Button className="w-full">Yeni Turnuva Oluştur</Button>
+            </Link>
+          )}
         </div>
       </div>
 
@@ -154,18 +158,22 @@ export default function TournamentsPage() {
                 <Link href={`/tournaments/${tournament._id}`} className="w-full sm:w-auto">
                   <Button variant="outline" size="sm" className="w-full">Detaylar</Button>
                 </Link>
-                <Link href={`/tournaments/${tournament._id}/edit`} className="w-full sm:w-auto">
-                  <Button variant="outline" size="sm" className="w-full">Düzenle</Button>
-                </Link>
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={() => handleDelete(tournament._id)}
-                  disabled={deleteMutation.isPending}
-                  className="w-full sm:w-auto text-destructive hover:text-destructive"
-                >
-                  Sil
-                </Button>
+                {isAdmin && (
+                  <>
+                    <Link href={`/tournaments/${tournament._id}/edit`} className="w-full sm:w-auto">
+                      <Button variant="outline" size="sm" className="w-full">Düzenle</Button>
+                    </Link>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => handleDelete(tournament._id)}
+                      disabled={deleteMutation.isPending}
+                      className="w-full sm:w-auto text-destructive hover:text-destructive"
+                    >
+                      Sil
+                    </Button>
+                  </>
+                )}
               </CardFooter>
             </Card>
           ))
@@ -174,11 +182,13 @@ export default function TournamentsPage() {
             <Trophy className="h-12 w-12 text-muted-foreground mb-4" />
             <div className="text-xl font-semibold mb-2">Henüz turnuva bulunmuyor</div>
             <div className="text-muted-foreground mb-6">
-              İlk turnuvanızı oluşturarak başlayın
+              {isAdmin ? 'İlk turnuvanızı oluşturarak başlayın' : 'Henüz hiç turnuva oluşturulmamış'}
             </div>
-            <Link href="/tournaments/create">
-              <Button>İlk Turnuvayı Oluştur</Button>
-            </Link>
+            {isAdmin && (
+              <Link href="/tournaments/create">
+                <Button>İlk Turnuvayı Oluştur</Button>
+              </Link>
+            )}
           </div>
         )}
       </div>

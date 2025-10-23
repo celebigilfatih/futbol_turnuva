@@ -10,10 +10,12 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { tournamentService } from '@/lib/services/tournament';
 import { matchService } from '@/lib/services/match';
+import { useAuth } from '@/contexts/AuthContext';
 
 
 export default function TournamentDetailsPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params);
+  const { isAdmin } = useAuth();
 
   // Turnuva verilerini getir
   const { data: tournament, isLoading: isTournamentLoading } = useQuery({
@@ -86,18 +88,22 @@ export default function TournamentDetailsPage({ params }: { params: Promise<{ id
         </div>
         <div className="flex items-center gap-2 self-end sm:self-auto">
           {getStatusBadge(tournament?.status)}
-          <Link href={`/tournaments/${tournament?._id}/teams`}>
-            <Button variant="outline" size="sm" className="gap-2">
-              <UserPlus className="h-4 w-4" />
-              Takımları Yönet
-            </Button>
-          </Link>
-          <Link href={`/tournaments/${tournament?._id}/edit`}>
-            <Button variant="outline" size="sm" className="gap-2">
-              <Settings className="h-4 w-4" />
-              Düzenle
-            </Button>
-          </Link>
+          {isAdmin && (
+            <>
+              <Link href={`/tournaments/${tournament?._id}/teams`}>
+                <Button variant="outline" size="sm" className="gap-2">
+                  <UserPlus className="h-4 w-4" />
+                  Takımları Yönet
+                </Button>
+              </Link>
+              <Link href={`/tournaments/${tournament?._id}/edit`}>
+                <Button variant="outline" size="sm" className="gap-2">
+                  <Settings className="h-4 w-4" />
+                  Düzenle
+                </Button>
+              </Link>
+            </>
+          )}
         </div>
       </div>
 
