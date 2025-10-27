@@ -88,15 +88,21 @@ export default function TournamentDetailsPage({ params }: { params: Promise<{ id
         </div>
         <div className="flex items-center gap-2 self-end sm:self-auto">
           {getStatusBadge(tournament?.status)}
-          {isAdmin && (
+          {isAdmin && tournament?._id && (
             <>
-              <Link href={`/tournaments/${tournament?._id}/teams`}>
+              <Link href={`/tournaments/${tournament._id}/crossover`}>
+                <Button variant="outline" size="sm" className="gap-2 bg-gradient-to-r from-yellow-50 to-purple-50 dark:from-yellow-950/20 dark:to-purple-950/20 border-yellow-200 dark:border-yellow-800 text-yellow-700 dark:text-yellow-400 hover:from-yellow-100 hover:to-purple-100">
+                  <Trophy className="h-4 w-4" />
+                  Crossover Finals
+                </Button>
+              </Link>
+              <Link href={`/tournaments/${tournament._id}/teams`}>
                 <Button variant="outline" size="sm" className="gap-2">
                   <UserPlus className="h-4 w-4" />
                   Takımları Yönet
                 </Button>
               </Link>
-              <Link href={`/tournaments/${tournament?._id}/edit`}>
+              <Link href={`/tournaments/${tournament._id}/edit`}>
                 <Button variant="outline" size="sm" className="gap-2">
                   <Settings className="h-4 w-4" />
                   Düzenle

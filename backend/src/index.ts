@@ -9,6 +9,7 @@ import tournamentRoutes from './routes/tournament';
 import matchRoutes from './routes/match';
 import playerRoutes from './routes/player';
 import authRoutes from './routes/auth';
+import crossoverFinalsRoutes from './routes/crossoverFinals';
 
 // Routes will be imported here
 // import matchRoutes from './routes/match';
@@ -63,6 +64,7 @@ app.use('/api/teams', teamRoutes);
 app.use('/api/tournaments', tournamentRoutes);
 app.use('/api/matches', matchRoutes);
 app.use('/api/players', playerRoutes);
+app.use('/api/crossover-finals', crossoverFinalsRoutes);
 
 // Routes will be configured here
 // app.use('/api/matches', matchRoutes);

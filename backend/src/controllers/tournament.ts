@@ -34,6 +34,12 @@ interface PartialFixtureMatch {
   status: MatchStatus;
   extraTimeEnabled: boolean;
   penaltyShootoutEnabled: boolean;
+  crossoverInfo?: {
+    homeTeamRank: number;
+    awayTeamRank: number;
+    homeTeamGroup: string;
+    awayTeamGroup: string;
+  };
 }
 
 // Tüm turnuvaları getir
@@ -307,46 +313,47 @@ export const generateFixture = async (req: Request, res: Response) => {
     const numFields = tournament.numberOfFields;
 
     // Helper: Parse a time string ("HH:MM") into a Date for a given day
+    // Works in local timezone to avoid offset issues
     const parseTime = (day: Date, timeStr: string): Date => {
       const [hour, minute] = timeStr.split(':').map(Number);
-      // Create date in Turkey timezone (UTC+3) 
-      // For Turkey time 11:00, we need to store it as 08:00 UTC
-      // So we subtract 3 hours from the intended Turkey time
-      const d = new Date(Date.UTC(day.getFullYear(), day.getMonth(), day.getDate(), hour - 3, minute, 0, 0));
+      // Create date in local timezone
+      const d = new Date(day.getFullYear(), day.getMonth(), day.getDate(), hour, minute, 0, 0);
       return d;
     };
 
     // Generate global time slots based on tournament settings
     const slots: { time: Date, index: number }[] = [];
     let slotIndex = 0;
+    // Work in local timezone
     let currentDay = new Date(tournament.startDate);
+    // Reset to midnight
+    currentDay.setHours(0, 0, 0, 0);
+    
     // Ensure we generate enough slot fields to schedule all matches
     while (slots.length * numFields < allMatches.length) {
       const morningStart = parseTime(currentDay, tournament.startTime);
       const lunchStart = parseTime(currentDay, tournament.lunchBreakStart);
-      // Create afternoon start time accounting for timezone
-      const lunchStartUTC = new Date(Date.UTC(lunchStart.getUTCFullYear(), lunchStart.getUTCMonth(), lunchStart.getUTCDate(), 
-                                             lunchStart.getUTCHours(), lunchStart.getUTCMinutes(), lunchStart.getUTCSeconds(), lunchStart.getUTCMilliseconds()));
-      const afternoonStart = new Date(lunchStartUTC.getTime() + tournament.lunchBreakDuration * 60000);
+      // Calculate afternoon start by adding lunch break duration to lunch start
+      const afternoonStart = new Date(lunchStart.getTime() + tournament.lunchBreakDuration * 60000);
       const dayEnd = parseTime(currentDay, tournament.endTime);
 
-      // Generate morning slots
-      let t = new Date(morningStart);
-      while (t < lunchStart) {
-        // Store slot times in UTC but representing correct Turkey time
-        const slotTime = new Date(Date.UTC(t.getUTCFullYear(), t.getUTCMonth(), t.getUTCDate(), 
-                                          t.getUTCHours(), t.getUTCMinutes(), t.getUTCSeconds(), t.getUTCMilliseconds()));
-        slots.push({ time: slotTime, index: slotIndex });
-        slotIndex++;
-        t.setMinutes(t.getMinutes() + slotInterval);
+      // Generate morning slots ONLY if start time is before lunch
+      if (morningStart < lunchStart) {
+        let t = new Date(morningStart);
+        while (t < lunchStart) {
+          // Store times directly without UTC conversion
+          slots.push({ time: new Date(t), index: slotIndex });
+          slotIndex++;
+          t.setMinutes(t.getMinutes() + slotInterval);
+        }
       }
-      // Generate afternoon slots
-      t = new Date(afternoonStart);
+      
+      // Generate afternoon slots starting from the later of: afterno onStart OR configured start time
+      let afternoonActualStart = new Date(Math.max(afternoonStart.getTime(), morningStart.getTime()));
+      let t = new Date(afternoonActualStart);
       while (t < dayEnd) {
-        // Store slot times in UTC but representing correct Turkey time
-        const slotTime = new Date(Date.UTC(t.getUTCFullYear(), t.getUTCMonth(), t.getUTCDate(), 
-                                          t.getUTCHours(), t.getUTCMinutes(), t.getUTCSeconds(), t.getUTCMilliseconds()));
-        slots.push({ time: slotTime, index: slotIndex });
+        // Store times directly without UTC conversion
+        slots.push({ time: new Date(t), index: slotIndex });
         slotIndex++;
         t.setMinutes(t.getMinutes() + slotInterval);
       }
@@ -370,9 +377,8 @@ export const generateFixture = async (req: Request, res: Response) => {
         // Ensure at least one slot gap between matches for both teams
         if ((homeLast === undefined || homeLast <= slot.index - 2) &&
             (awayLast === undefined || awayLast <= slot.index - 2)) {
-          // Use timezone-adjusted time
-          match.date = new Date(Date.UTC(slot.time.getUTCFullYear(), slot.time.getUTCMonth(), slot.time.getUTCDate(), 
-                                        slot.time.getUTCHours(), slot.time.getUTCMinutes(), slot.time.getUTCSeconds(), slot.time.getUTCMilliseconds()));
+          // Store match date directly
+          match.date = new Date(slot.time);
           match.field = fieldsUsed + 1; // Assign field number (1-indexed) in this slot
           scheduledMatches.push(match);
           teamLastSlot.set(homeId, slot.index);
@@ -392,9 +398,8 @@ export const generateFixture = async (req: Request, res: Response) => {
         let fieldsUsed = scheduledMatches.filter(m => (m.date as Date).getTime() === slot.time.getTime()).length;
         while (fieldsUsed < numFields && unscheduled.length > 0) {
           const match = unscheduled.shift() as FixtureMatch;
-          // Use timezone-adjusted time
-          match.date = new Date(Date.UTC(slot.time.getUTCFullYear(), slot.time.getUTCMonth(), slot.time.getUTCDate(), 
-                                        slot.time.getUTCHours(), slot.time.getUTCMinutes(), slot.time.getUTCSeconds(), slot.time.getUTCMilliseconds()));
+          // Store match date directly
+          match.date = new Date(slot.time);
           match.field = fieldsUsed + 1;
           scheduledMatches.push(match);
           fieldsUsed++;
@@ -406,6 +411,174 @@ export const generateFixture = async (req: Request, res: Response) => {
     // Remove existing matches for the tournament and insert the new schedule
     await Match.deleteMany({ tournament: tournament._id });
     await Match.insertMany(scheduledMatches);
+
+    // Automatically generate quarter finals and semi finals if tournament has 2+ groups
+    let knockoutMatches: PartialFixtureMatch[] = [];
+    if (tournament.groups.length >= 2) {
+      // Generate quarter finals (placeholder teams - will be filled after group stage)
+      const groupNames = tournament.groups.map(g => g.name);
+      const quarterFinals: PartialFixtureMatch[] = [];
+      
+      // Create crossover quarter final matches (A1 vs B2, B1 vs A2, etc.)
+      for (let i = 0; i < groupNames.length; i += 2) {
+        const groupA = groupNames[i];
+        const groupB = groupNames[i + 1];
+        
+        if (groupA && groupB) {
+          // Get placeholder team IDs (first teams from each group as placeholders)
+          const groupATeams = tournament.groups[i].teams;
+          const groupBTeams = tournament.groups[i + 1].teams;
+          
+          quarterFinals.push(
+            {
+              tournament: tournament._id,
+              homeTeam: (typeof groupATeams[0] === 'string') ? new mongoose.Types.ObjectId(groupATeams[0]) : ((groupATeams[0] as any)._id),
+              awayTeam: (typeof groupBTeams[1] === 'string') ? new mongoose.Types.ObjectId(groupBTeams[1]) : ((groupBTeams[1] as any)._id),
+              stage: 'quarter_final',
+              status: 'scheduled',
+              extraTimeEnabled: tournament.extraTimeEnabled,
+              penaltyShootoutEnabled: tournament.penaltyShootoutEnabled,
+              crossoverInfo: {
+                homeTeamGroup: groupA,
+                homeTeamRank: 1,
+                awayTeamGroup: groupB,
+                awayTeamRank: 2
+              }
+            },
+            {
+              tournament: tournament._id,
+              homeTeam: (typeof groupBTeams[0] === 'string') ? new mongoose.Types.ObjectId(groupBTeams[0]) : ((groupBTeams[0] as any)._id),
+              awayTeam: (typeof groupATeams[1] === 'string') ? new mongoose.Types.ObjectId(groupATeams[1]) : ((groupATeams[1] as any)._id),
+              stage: 'quarter_final',
+              status: 'scheduled',
+              extraTimeEnabled: tournament.extraTimeEnabled,
+              penaltyShootoutEnabled: tournament.penaltyShootoutEnabled,
+              crossoverInfo: {
+                homeTeamGroup: groupB,
+                homeTeamRank: 1,
+                awayTeamGroup: groupA,
+                awayTeamRank: 2
+              }
+            }
+          );
+        }
+      }
+      
+      // Schedule quarter finals after the last group match
+      const lastGroupMatch = scheduledMatches[scheduledMatches.length - 1];
+      let qfDate = new Date(lastGroupMatch.date);
+      qfDate.setDate(qfDate.getDate() + 1); // Next day
+      qfDate.setHours(0, 0, 0, 0); // Reset to midnight
+      const [startHour, startMinute] = tournament.startTime.split(':').map(Number);
+      qfDate.setHours(startHour, startMinute, 0, 0);
+      
+      for (let i = 0; i < quarterFinals.length; i++) {
+        (quarterFinals[i] as any).date = new Date(qfDate);
+        (quarterFinals[i] as any).field = (i % tournament.numberOfFields) + 1;
+        
+        // Move to next time slot after every numberOfFields matches
+        if ((i + 1) % tournament.numberOfFields === 0) {
+          qfDate.setMinutes(qfDate.getMinutes() + slotInterval);
+        }
+      }
+      
+      knockoutMatches = [...quarterFinals];
+      
+      // Generate semi finals (placeholder teams)
+      const semiFinals: PartialFixtureMatch[] = [];
+      if (quarterFinals.length >= 2) {
+        // SF1: Winner of QF1 vs Winner of QF2
+        // SF2: Winner of QF3 vs Winner of QF4 (if exists)
+        const firstQF = quarterFinals[0];
+        semiFinals.push(
+          {
+            tournament: tournament._id,
+            homeTeam: firstQF.homeTeam,
+            awayTeam: quarterFinals[1]?.homeTeam || firstQF.awayTeam,
+            stage: 'semi_final',
+            status: 'scheduled',
+            extraTimeEnabled: tournament.extraTimeEnabled,
+            penaltyShootoutEnabled: tournament.penaltyShootoutEnabled,
+            crossoverInfo: {
+              homeTeamGroup: 'QF1',
+              homeTeamRank: 1,
+              awayTeamGroup: 'QF2',
+              awayTeamRank: 1
+            }
+          }
+        );
+        
+        if (quarterFinals.length >= 4) {
+          semiFinals.push(
+            {
+              tournament: tournament._id,
+              homeTeam: quarterFinals[2].homeTeam,
+              awayTeam: quarterFinals[3].homeTeam,
+              stage: 'semi_final',
+              status: 'scheduled',
+              extraTimeEnabled: tournament.extraTimeEnabled,
+              penaltyShootoutEnabled: tournament.penaltyShootoutEnabled,
+              crossoverInfo: {
+                homeTeamGroup: 'QF3',
+                homeTeamRank: 1,
+                awayTeamGroup: 'QF4',
+                awayTeamRank: 1
+              }
+            }
+          );
+        }
+        
+        // Schedule semi finals after quarter finals
+        let sfDate = new Date(qfDate);
+        sfDate.setDate(sfDate.getDate() + 1); // Next day
+        sfDate.setHours(startHour, startMinute, 0, 0);
+        
+        for (let i = 0; i < semiFinals.length; i++) {
+          (semiFinals[i] as any).date = new Date(sfDate);
+          (semiFinals[i] as any).field = (i % tournament.numberOfFields) + 1;
+          
+          if ((i + 1) % tournament.numberOfFields === 0) {
+            sfDate.setMinutes(sfDate.getMinutes() + slotInterval);
+          }
+        }
+        
+        knockoutMatches = [...knockoutMatches, ...semiFinals];
+        
+        // Generate final match
+        if (semiFinals.length >= 2) {
+          const finalMatch: PartialFixtureMatch = {
+            tournament: tournament._id,
+            homeTeam: semiFinals[0].homeTeam,
+            awayTeam: semiFinals[1].homeTeam,
+            stage: 'final',
+            status: 'scheduled',
+            extraTimeEnabled: tournament.extraTimeEnabled,
+            penaltyShootoutEnabled: tournament.penaltyShootoutEnabled,
+            crossoverInfo: {
+              homeTeamGroup: 'SF1',
+              homeTeamRank: 1,
+              awayTeamGroup: 'SF2',
+              awayTeamRank: 1
+            }
+          };
+          
+          // Schedule final after semi finals
+          let finalDate = new Date(sfDate);
+          finalDate.setDate(finalDate.getDate() + 1); // Next day
+          finalDate.setHours(startHour, startMinute, 0, 0);
+          
+          (finalMatch as any).date = finalDate;
+          (finalMatch as any).field = 1;
+          
+          knockoutMatches = [...knockoutMatches, finalMatch];
+        }
+      }
+      
+      // Insert knockout matches
+      if (knockoutMatches.length > 0) {
+        await Match.insertMany(knockoutMatches);
+      }
+    }
 
     // Update tournament status
     tournament.status = 'group_stage';
@@ -424,6 +597,7 @@ export const generateFixture = async (req: Request, res: Response) => {
       message: 'Fikstür başarıyla oluşturuldu.',
       data: {
         totalMatches: scheduledMatches.length,
+        knockoutMatches: knockoutMatches.length,
         scheduledDays: Math.ceil(scheduledMatches.length / (numFields * uniqueTimes.length)),
         matchesPerDay: numFields * uniqueTimes.length,
         dailySchedule: {
@@ -697,18 +871,23 @@ export const generateKnockoutMatches = async (req: Request, res: Response) => {
 
     // Her grup için puan durumunu hesapla ve ilk iki takımı al
     const qualifiedTeams = [];
+    const groupNames = [];
     for (const group of tournament.groups) {
       const groupStandings = await calculateGroupStandings(tournament._id, group.name);
       qualifiedTeams.push(
         groupStandings[0]?.team, // Birinci
         groupStandings[1]?.team  // İkinci
       );
+      groupNames.push(group.name);
     }
 
     // Çeyrek final eşleşmelerini oluştur (çapraz eşleşme)
     const quarterFinalMatches = [];
     // A1 vs B2, B1 vs A2, C1 vs D2, D1 vs C2
     for (let i = 0; i < qualifiedTeams.length; i += 4) {
+      const groupA = groupNames[i / 2] || 'Grup A';
+      const groupB = groupNames[i / 2 + 1] || 'Grup B';
+      
       quarterFinalMatches.push(
         {
           tournament: tournament._id,
@@ -717,7 +896,13 @@ export const generateKnockoutMatches = async (req: Request, res: Response) => {
           stage: 'quarter_final',
           status: 'scheduled',
           extraTimeEnabled: tournament.extraTimeEnabled,
-          penaltyShootoutEnabled: tournament.penaltyShootoutEnabled
+          penaltyShootoutEnabled: tournament.penaltyShootoutEnabled,
+          crossoverInfo: {
+            homeTeamGroup: groupA,
+            homeTeamRank: 1,
+            awayTeamGroup: groupB,
+            awayTeamRank: 2
+          }
         },
         {
           tournament: tournament._id,
@@ -726,17 +911,25 @@ export const generateKnockoutMatches = async (req: Request, res: Response) => {
           stage: 'quarter_final',
           status: 'scheduled',
           extraTimeEnabled: tournament.extraTimeEnabled,
-          penaltyShootoutEnabled: tournament.penaltyShootoutEnabled
+          penaltyShootoutEnabled: tournament.penaltyShootoutEnabled,
+          crossoverInfo: {
+            homeTeamGroup: groupB,
+            homeTeamRank: 1,
+            awayTeamGroup: groupA,
+            awayTeamRank: 2
+          }
         }
       );
     }
 
     // Maç zamanlarını ve sahalarını planla
     let currentDate = new Date(tournament.startDate);
+    // Work in local timezone
+    currentDate.setHours(0, 0, 0, 0);
     let currentTime = new Date(currentDate);
     const [startHour, startMinute] = tournament.startTime.split(':').map(Number);
-    // Use local time instead of UTC
-    currentTime = new Date(currentTime.getFullYear(), currentTime.getMonth(), currentTime.getDate(), startHour, startMinute, 0, 0);
+    // Create date in local timezone
+    currentTime.setHours(startHour, startMinute, 0, 0);
 
     // Son grup maçının tarihini bul ve ondan sonraki güne planla
     const lastGroupMatch = await Match.findOne({ 
@@ -747,26 +940,22 @@ export const generateKnockoutMatches = async (req: Request, res: Response) => {
     if (lastGroupMatch) {
       currentDate = new Date(lastGroupMatch.date);
       currentDate.setDate(currentDate.getDate() + 1);
+      currentDate.setHours(0, 0, 0, 0);
       const [startHour, startMinute] = tournament.startTime.split(':').map(Number);
-      // Create date in Turkey timezone (UTC+3) 
-      // For Turkey time 11:00, we need to store it as 08:00 UTC
-      // So we subtract 3 hours from the intended Turkey time
-      currentTime = new Date(Date.UTC(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate(), startHour - 3, startMinute, 0, 0));
+      // Create date in local timezone
+      currentTime = new Date(currentDate);
+      currentTime.setHours(startHour, startMinute, 0, 0);
     }
 
     // Çeyrek final maçlarını planla
     for (let i = 0; i < quarterFinalMatches.length; i++) {
-      // Use timezone-adjusted time
-      (quarterFinalMatches[i] as any).date = new Date(Date.UTC(currentTime.getFullYear(), currentTime.getMonth(), currentTime.getDate(), 
-                                                   currentTime.getHours(), currentTime.getMinutes(), currentTime.getSeconds(), currentTime.getMilliseconds()));
+      // Store time directly in local timezone
+      (quarterFinalMatches[i] as any).date = new Date(currentTime);
       (quarterFinalMatches[i] as any).field = (i % tournament.numberOfFields) + 1;
 
       // Sonraki maç için zamanı güncelle
       if ((i + 1) % tournament.numberOfFields === 0) {
-        const newMinutes = currentTime.getMinutes() + (tournament.matchDuration || 90) + (tournament.breakDuration || 15);
-        // Use timezone-adjusted time
-        currentTime = new Date(currentTime.getFullYear(), currentTime.getMonth(), currentTime.getDate(), 
-                              currentTime.getHours(), newMinutes, currentTime.getSeconds(), currentTime.getMilliseconds());
+        currentTime.setMinutes(currentTime.getMinutes() + (tournament.matchDuration || 90) + (tournament.breakDuration || 15));
       }
     }
 
@@ -941,24 +1130,20 @@ export const generateSemiFinalAndFinal = async (req: Request, res: Response) => 
     // Yarı final maçlarını planla
     let currentDate = new Date(lastQuarterFinal.date);
     currentDate.setDate(currentDate.getDate() + 1);
+    currentDate.setHours(0, 0, 0, 0);
     const [startHour, startMinute] = tournament.startTime.split(':').map(Number);
-    // Create date in Turkey timezone (UTC+3) 
-    // For Turkey time 11:00, we need to store it as 08:00 UTC
-    // So we subtract 3 hours from the intended Turkey time
-    let currentTime = new Date(Date.UTC(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate(), startHour - 3, startMinute, 0, 0));
+    // Create date in local timezone
+    let currentTime = new Date(currentDate);
+    currentTime.setHours(startHour, startMinute, 0, 0);
 
     // Yarı final maçlarını zamanla
     for (let i = 0; i < semiFinalMatches.length; i++) {
-      // Use timezone-adjusted time
-      semiFinalMatches[i].date = new Date(Date.UTC(currentTime.getFullYear(), currentTime.getMonth(), currentTime.getDate(), 
-                                         currentTime.getHours(), currentTime.getMinutes(), currentTime.getSeconds(), currentTime.getMilliseconds()));
-      semiFinalMatches[i].field = 1; // Ana sahada oynansın
+      // Store time directly in local timezone
+      semiFinalMatches[i].date = new Date(currentTime);
+      semiFinalMatches[i].field = 1; // Ana sahada oynansin
 
       // Sonraki maç için zamanı güncelle
-      const newMinutes = currentTime.getMinutes() + tournament.matchDuration + tournament.breakDuration;
-      // Use timezone-adjusted time
-      currentTime = new Date(Date.UTC(currentTime.getFullYear(), currentTime.getMonth(), currentTime.getDate(), 
-                            currentTime.getHours(), newMinutes, currentTime.getSeconds(), currentTime.getMilliseconds()));
+      currentTime.setMinutes(currentTime.getMinutes() + tournament.matchDuration + tournament.breakDuration);
     }
 
     // Yarı final maçlarını kaydet
@@ -1038,10 +1223,8 @@ export const generateFinal = async (req: Request, res: Response) => {
     let finalDate = new Date(lastSemiFinal.date);
     finalDate.setDate(finalDate.getDate() + 1);
     const [startHour, startMinute] = tournament.startTime.split(':').map(Number);
-    // Create date in Turkey timezone (UTC+3) 
-    // For Turkey time 11:00, we need to store it as 08:00 UTC
-    // So we subtract 3 hours from the intended Turkey time
-    finalDate = new Date(Date.UTC(finalDate.getFullYear(), finalDate.getMonth(), finalDate.getDate(), startHour - 3, startMinute, 0, 0));
+    // Create date in local timezone
+    finalDate = new Date(finalDate.getFullYear(), finalDate.getMonth(), finalDate.getDate(), startHour, startMinute, 0, 0);
 
     finalMatch.date = finalDate;
     finalMatch.field = 1; // Ana sahada oynansın
@@ -1123,6 +1306,7 @@ export const generateQuarterFinals = async (req: Request, res: Response) => {
     }
 
     const qualifiedTeams: mongoose.Types.ObjectId[] = [];
+    const groupNames: string[] = [];
     for (const group of tournament.groups) {
       const groupStandings = await calculateGroupStandings(tournament._id, group.name);
       if (groupStandings[0]?.team) {
@@ -1133,11 +1317,15 @@ export const generateQuarterFinals = async (req: Request, res: Response) => {
         const teamId = (typeof groupStandings[1].team === 'string') ? new mongoose.Types.ObjectId(groupStandings[1].team) : (groupStandings[1].team as mongoose.Types.ObjectId);
         qualifiedTeams.push(teamId);
       }
+      groupNames.push(group.name);
     }
 
     const quarterFinalMatches: PartialFixtureMatch[] = [];
     // A1 vs B2, B1 vs A2, C1 vs D2, D1 vs C2
     for (let i = 0; i < qualifiedTeams.length; i += 4) {
+      const groupA = groupNames[i / 2] || 'Grup A';
+      const groupB = groupNames[i / 2 + 1] || 'Grup B';
+      
       quarterFinalMatches.push(
         {
           tournament: tournament._id,
@@ -1146,7 +1334,13 @@ export const generateQuarterFinals = async (req: Request, res: Response) => {
           stage: 'quarter_final',
           status: 'scheduled',
           extraTimeEnabled: tournament.extraTimeEnabled,
-          penaltyShootoutEnabled: tournament.penaltyShootoutEnabled
+          penaltyShootoutEnabled: tournament.penaltyShootoutEnabled,
+          crossoverInfo: {
+            homeTeamGroup: groupA,
+            homeTeamRank: 1,
+            awayTeamGroup: groupB,
+            awayTeamRank: 2
+          }
         },
         {
           tournament: tournament._id,
@@ -1155,7 +1349,13 @@ export const generateQuarterFinals = async (req: Request, res: Response) => {
           stage: 'quarter_final',
           status: 'scheduled',
           extraTimeEnabled: tournament.extraTimeEnabled,
-          penaltyShootoutEnabled: tournament.penaltyShootoutEnabled
+          penaltyShootoutEnabled: tournament.penaltyShootoutEnabled,
+          crossoverInfo: {
+            homeTeamGroup: groupB,
+            homeTeamRank: 1,
+            awayTeamGroup: groupA,
+            awayTeamRank: 2
+          }
         }
       );
     }
@@ -1177,25 +1377,19 @@ export const generateQuarterFinals = async (req: Request, res: Response) => {
       currentDate = new Date(lastGroupMatch.date);
       currentDate.setDate(currentDate.getDate() + 1);
       const [startHour, startMinute] = tournament.startTime.split(':').map(Number);
-      // Create date in Turkey timezone (UTC+3) 
-      // For Turkey time 11:00, we need to store it as 08:00 UTC
-      // So we subtract 3 hours from the intended Turkey time
-      currentTime = new Date(Date.UTC(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate(), startHour - 3, startMinute, 0, 0));
+      // Create date in local timezone
+      currentTime = new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate(), startHour, startMinute, 0, 0);
     }
 
     // Çeyrek final maçlarını planla
     for (let i = 0; i < quarterFinalMatches.length; i++) {
-      // Use timezone-adjusted time
-      quarterFinalMatches[i].date = new Date(Date.UTC(currentTime.getFullYear(), currentTime.getMonth(), currentTime.getDate(), 
-                                           currentTime.getHours(), currentTime.getMinutes(), currentTime.getSeconds(), currentTime.getMilliseconds()));
+      // Store time directly in local timezone
+      quarterFinalMatches[i].date = new Date(currentTime);
       quarterFinalMatches[i].field = (i % tournament.numberOfFields) + 1;
 
       // Sonraki maç için zamanı güncelle
       if ((i + 1) % tournament.numberOfFields === 0) {
-        const newMinutes = currentTime.getMinutes() + (tournament.matchDuration || 90) + (tournament.breakDuration || 15);
-        // Use timezone-adjusted time
-        currentTime = new Date(Date.UTC(currentTime.getFullYear(), currentTime.getMonth(), currentTime.getDate(), 
-                              currentTime.getHours(), newMinutes, currentTime.getSeconds(), currentTime.getMilliseconds()));
+        currentTime.setMinutes(currentTime.getMinutes() + (tournament.matchDuration || 90) + (tournament.breakDuration || 15));
       }
     }
 

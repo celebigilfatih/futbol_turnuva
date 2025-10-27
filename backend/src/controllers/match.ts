@@ -265,9 +265,10 @@ export const getStandings = async (req: Request, res: Response) => {
       return res.status(404).json({ message: 'Turnuva bulunamadı.' });
     }
 
-    // Turnuvadaki tüm maçları getir
+    // Turnuvadaki sadece grup maçlarını getir
     const matches = await Match.find({
       tournament: tournamentId,
+      stage: 'group',
       status: 'completed'
     }).populate('homeTeam awayTeam');
 
@@ -285,10 +286,14 @@ export const getStandings = async (req: Request, res: Response) => {
           return;
         }
 
-        standings.set((team as any)._id?.toString() || team.toString(), {
+        const teamId = (team as any)._id?.toString() || team.toString();
+        const teamName = (team as any).name || 'Unknown Team';
+        console.log(`  - Adding team ${teamName} (${teamId}) to ${group.name}`);
+
+        standings.set(teamId, {
           team: {
-            id: (team as any)._id?.toString() || team.toString(),
-            name: (team as any).name || 'Unknown Team'
+            id: teamId,
+            name: teamName
           },
           group: group.name,
           played: 0,
@@ -303,10 +308,16 @@ export const getStandings = async (req: Request, res: Response) => {
       });
     });
 
-    // Maç sonuçlarına göre puan durumunu güncelle
+    // Maç sonuçlarına göre puan durumunu güncelle (sadece grup maçları)
     matches.forEach(match => {
       if (!match.score) {
         console.log('Match without score found:', match._id);
+        return;
+      }
+
+      // Sadece grup sahası maçlarını say
+      if (match.stage !== 'group' || !match.group) {
+        console.log('Skipping non-group match:', match._id);
         return;
       }
 
@@ -318,6 +329,12 @@ export const getStandings = async (req: Request, res: Response) => {
       if (!homeTeamStats || !awayTeamStats) {
         console.log('Team stats not found for match:', match._id);
         console.log('Home team:', homeTeamId, 'Away team:', awayTeamId);
+        return;
+      }
+
+      // Maçın grubunun doğru olduğundan emin ol
+      if (homeTeamStats.group !== match.group || awayTeamStats.group !== match.group) {
+        console.log('Match group mismatch:', match._id, 'Match group:', match.group, 'Home team group:', homeTeamStats.group, 'Away team group:', awayTeamStats.group);
         return;
       }
 
@@ -354,6 +371,7 @@ export const getStandings = async (req: Request, res: Response) => {
 
     const standingsArray = Array.from(standings.values());
     console.log('Final standings count:', standingsArray.length);
+    console.log('Teams in standings:', standingsArray.map(s => `${s.team.name} (${s.group})`).join(', '));
 
     res.json({ 
       data: standingsArray

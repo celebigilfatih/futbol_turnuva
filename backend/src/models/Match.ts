@@ -22,13 +22,20 @@ export interface IMatch extends Document {
   awayTeam: mongoose.Types.ObjectId;
   date: Date;
   field: number;
-  stage: 'group' | 'quarter_final' | 'semi_final' | 'final';
+  stage: 'group' | 'quarter_final' | 'semi_final' | 'final' | 'gold_final' | 'silver_final' | 'bronze_final' | 'prestige_final';
   group?: string;
   status: 'scheduled' | 'in_progress' | 'completed' | 'cancelled';
   score?: IScore;
   extraTimeEnabled: boolean;
   penaltyShootoutEnabled: boolean;
   winner?: mongoose.Types.ObjectId;
+  finalStageLabel?: string;
+  crossoverInfo?: {
+    homeTeamRank: number;
+    awayTeamRank: number;
+    homeTeamGroup: string;
+    awayTeamGroup: string;
+  };
 }
 
 const ScorerSchema = new Schema<IScorer>({
@@ -53,10 +60,11 @@ const MatchSchema = new Schema<IMatch>({
   field: { type: Number, required: true },
   stage: { 
     type: String, 
-    enum: ['group', 'quarter_final', 'semi_final', 'final'],
+    enum: ['group', 'quarter_final', 'semi_final', 'final', 'gold_final', 'silver_final', 'bronze_final', 'prestige_final'],
     required: true 
   },
   group: { type: String },
+  finalStageLabel: { type: String },
   status: { 
     type: String, 
     enum: ['scheduled', 'in_progress', 'completed', 'cancelled'],
@@ -65,7 +73,13 @@ const MatchSchema = new Schema<IMatch>({
   score: ScoreSchema,
   extraTimeEnabled: { type: Boolean, default: false },
   penaltyShootoutEnabled: { type: Boolean, default: false },
-  winner: { type: Schema.Types.ObjectId, ref: 'Team' }
+  winner: { type: Schema.Types.ObjectId, ref: 'Team' },
+  crossoverInfo: {
+    homeTeamRank: { type: Number },
+    awayTeamRank: { type: Number },
+    homeTeamGroup: { type: String },
+    awayTeamGroup: { type: String }
+  }
 }, {
   timestamps: true
 });

@@ -1,4 +1,5 @@
 'use client';
+'use client';
 
 import Link from 'next/link'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -8,7 +9,7 @@ import { matchService } from '@/lib/services/match'
 import { tournamentService } from '@/lib/services/tournament'
 import { Match } from '@/types/api'
 import { Badge } from '@/components/ui/badge'
-import { Swords, Calendar, MapPin, ChevronRight, Trash2, PlusCircle } from 'lucide-react'
+import { Swords, Calendar, MapPin, ChevronRight, Trash2, PlusCircle, Trophy } from 'lucide-react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useToast } from '@/components/ui/use-toast'
 import { useState, useMemo } from 'react'
@@ -29,6 +30,7 @@ export default function MatchesPage() {
       const response = await matchService.getAll();
       return response;
     },
+    refetchInterval: 5000, // Auto-refresh every 5 seconds
   });
 
   const deleteFixtureMutation = useMutation({
@@ -89,7 +91,11 @@ export default function MatchesPage() {
         'group': 0,
         'quarter_final': 1,
         'semi_final': 2,
-        'final': 3
+        'final': 3,
+        'gold_final': 4,
+        'silver_final': 5,
+        'bronze_final': 6,
+        'prestige_final': 7
       };
       const stageA = stageOrder[a.stage as keyof typeof stageOrder] || 0;
       const stageB = stageOrder[b.stage as keyof typeof stageOrder] || 0;
@@ -151,7 +157,12 @@ export default function MatchesPage() {
     }
   };
 
-  const getStageBadge = (stage: string) => {
+  const getStageBadge = (stage: string, finalStageLabel?: string) => {
+    // If it's a crossover final with a custom label, use that
+    if (finalStageLabel) {
+      return <Badge variant="secondary" className="bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-100">{finalStageLabel}</Badge>;
+    }
+    
     switch (stage) {
       case 'group':
         return <Badge variant="secondary">Grup Maçı</Badge>;
@@ -161,9 +172,36 @@ export default function MatchesPage() {
         return <Badge variant="secondary">Yarı Final</Badge>;
       case 'final':
         return <Badge variant="secondary">Final</Badge>;
+      case 'gold_final':
+        return <Badge variant="secondary" className="bg-yellow-100 dark:bg-yellow-900 text-yellow-700 dark:text-yellow-100">🥇 Altın Final</Badge>;
+      case 'silver_final':
+        return <Badge variant="secondary" className="bg-gray-100 dark:bg-gray-900 text-gray-700 dark:text-gray-100">🥈 Gümüş Final</Badge>;
+      case 'bronze_final':
+        return <Badge variant="secondary" className="bg-orange-100 dark:bg-orange-900 text-orange-700 dark:text-orange-100">🥉 Bronz Final</Badge>;
+      case 'prestige_final':
+        return <Badge variant="secondary" className="bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-100">⭐ Prestij Final</Badge>;
       default:
         return null;
     }
+  };
+
+  // Helper function to get team display (with placeholder for knockout matches)
+  const getTeamDisplay = (match: Match, isHome: boolean) => {
+    const team = isHome ? match.homeTeam : match.awayTeam;
+    const crossoverInfo = match.crossoverInfo;
+    
+    // If crossoverInfo exists, show placeholder format
+    if (crossoverInfo) {
+      const info = isHome ? 
+        { group: crossoverInfo.homeTeamGroup, rank: crossoverInfo.homeTeamRank } :
+        { group: crossoverInfo.awayTeamGroup, rank: crossoverInfo.awayTeamRank };
+      
+      // Remove "Grup" prefix and just show letter (e.g., "Grup A" -> "A")
+      const groupLetter = info.group.replace('Grup ', '');
+      return `${groupLetter} ${info.rank}.`;
+    }
+    
+    return team.name;
   };
 
   return (
@@ -193,10 +231,10 @@ export default function MatchesPage() {
             <>
               {sortedAndFilteredMatches.length > 0 ? (
                 <>
-                  <Link href="/matches/knockout" className="w-full sm:w-auto">
-                    <Button variant="secondary" className="w-full gap-2 bg-purple-100 hover:bg-purple-200 dark:bg-purple-900 dark:hover:bg-purple-800 text-purple-700 dark:text-purple-100 border-purple-200 dark:border-purple-800">
-                      <Swords className="h-4 w-4" />
-                      Eleme Aşaması Oluştur
+                  <Link href="/matches/bracket" className="w-full sm:w-auto">
+                    <Button variant="outline" className="w-full gap-2">
+                      <Trophy className="h-4 w-4" />
+                      Fikstür Ağacı
                     </Button>
                   </Link>
                   <Button 
@@ -240,7 +278,7 @@ export default function MatchesPage() {
                           <div className="flex items-center space-x-2">
                             <Swords className="h-5 w-5 text-primary" />
                             <CardTitle className="text-lg">
-                              {match.homeTeam.name} vs {match.awayTeam.name}
+                              {getTeamDisplay(match, true)} vs {getTeamDisplay(match, false)}
                             </CardTitle>
                           </div>
                           {getStatusBadge(match.status as MatchStatus)}
@@ -272,9 +310,14 @@ export default function MatchesPage() {
                               <span className="text-sm">Saha {match.field}</span>
                             </div>
                             <div className="flex items-center space-x-2">
-                              {getStageBadge(match.stage)}
+                              {getStageBadge(match.stage, match.finalStageLabel)}
                               {match.group && (
                                 <Badge variant="outline">{match.group}</Badge>
+                              )}
+                              {match.crossoverInfo && (
+                                <Badge variant="outline" className="text-xs">
+                                  {match.crossoverInfo.homeTeamGroup} {match.crossoverInfo.homeTeamRank}. vs {match.crossoverInfo.awayTeamGroup} {match.crossoverInfo.awayTeamRank}.
+                                </Badge>
                               )}
                             </div>
                           </div>

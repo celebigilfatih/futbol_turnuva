@@ -12,7 +12,7 @@ const api = axios.create({
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token');
-    if (token) {
+    if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`;
     }
     return config;
@@ -37,6 +37,9 @@ api.interceptors.response.use(
     return Promise.reject(error);
   }
 );
+
+// Export api instance for direct use
+export { api };
 
 // GET isteği
 export const get = async <T>(endpoint: string): Promise<ApiResponse<T>> => {
@@ -72,4 +75,4 @@ export const getPaginated = async <T>(
     `${endpoint}?page=${page}&limit=${limit}`
   );
   return response.data;
-}; 
+};

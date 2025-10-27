@@ -76,7 +76,7 @@ export interface Match {
   awayTeam: Team;
   date: string;
   field: number;
-  stage: 'group' | 'quarter_final' | 'semi_final' | 'final';
+  stage: 'group' | 'quarter_final' | 'semi_final' | 'final' | 'gold_final' | 'silver_final' | 'bronze_final' | 'prestige_final';
   group?: string;
   status: 'scheduled' | 'in_progress' | 'completed' | 'cancelled';
   score?: {
@@ -90,6 +90,13 @@ export interface Match {
   extraTimeEnabled: boolean;
   penaltyShootoutEnabled: boolean;
   winner?: Team;
+  finalStageLabel?: string;
+  crossoverInfo?: {
+    homeTeamRank: number;
+    awayTeamRank: number;
+    homeTeamGroup: string;
+    awayTeamGroup: string;
+  };
   createdAt: string;
   updatedAt: string;
 }

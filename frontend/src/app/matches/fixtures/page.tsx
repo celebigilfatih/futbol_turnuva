@@ -3,7 +3,7 @@
 import { useQuery, useMutation } from '@tanstack/react-query';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, ArrowUpDown, Printer } from 'lucide-react';
+import { ArrowLeft, ArrowUpDown, Printer, Filter, Download, Clock, MapPin, Users } from 'lucide-react';
 import { matchService } from '@/lib/services/match';
 import { Badge } from '@/components/ui/badge';
 import { DataTable } from '@/components/ui/data-table';
@@ -13,6 +13,13 @@ import { Input } from '@/components/ui/input';
 import { useState, useEffect, useMemo } from 'react';
 import { toast } from '@/components/ui/use-toast';
 import { queryClient } from '@/lib/query-client';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 export default function FixturesPage() {
   const { data: matchesResponse, isLoading } = useQuery({
@@ -21,22 +28,88 @@ export default function FixturesPage() {
       const response = await matchService.getAll();
       return response;
     },
+    refetchInterval: 5000, // Auto-refresh every 5 seconds
   });
 
   const matches = matchesResponse?.data || [];
 
-  // Add state for edit mode and edited matches
+  // Filter states
   const [editMode, setEditMode] = useState(false);
   const [editedMatches, setEditedMatches] = useState<Match[]>([]);
   const [hasChanges, setHasChanges] = useState(false);
+  const [globalFilter, setGlobalFilter] = useState<string>('');
+  const [selectedTournament, setSelectedTournament] = useState<string>('all');
+  const [selectedStatus, setSelectedStatus] = useState<string>('all');
+  const [selectedField, setSelectedField] = useState<string>('all');
+  const [sortBy, setSortBy] = useState<'date' | 'field'>('date');
+
+  // Get unique tournaments for filter
+  const tournaments = useMemo(() => {
+    const unique = new Map();
+    matches.forEach(match => {
+      if (typeof match.tournament !== 'string') {
+        unique.set(match.tournament._id, match.tournament);
+      }
+    });
+    return Array.from(unique.values());
+  }, [matches]);
+
+  // Get unique fields for filter
+  const fields = useMemo(() => {
+    return Array.from(new Set(matches.map(m => m.field))).sort((a, b) => a - b);
+  }, [matches]);
+
+  // Filter and sort matches
+  const filteredMatches = useMemo(() => {
+    let filtered = [...matches];
+
+    // Filter by tournament
+    if (selectedTournament !== 'all') {
+      filtered = filtered.filter(m => 
+        typeof m.tournament !== 'string' && m.tournament._id === selectedTournament
+      );
+    }
+
+    // Filter by status
+    if (selectedStatus !== 'all') {
+      filtered = filtered.filter(m => m.status === selectedStatus);
+    }
+
+    // Filter by field
+    if (selectedField !== 'all') {
+      const fieldNum = parseInt(selectedField);
+      filtered = filtered.filter(m => m.field === fieldNum);
+    }
+
+    // Filter by search text
+    if (globalFilter) {
+      const searchLower = globalFilter.toLowerCase();
+      filtered = filtered.filter(m => 
+        m.homeTeam.name.toLowerCase().includes(searchLower) ||
+        m.awayTeam.name.toLowerCase().includes(searchLower) ||
+        m.group?.toLowerCase().includes(searchLower)
+      );
+    }
+
+    // Sort
+    if (sortBy === 'date') {
+      filtered.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    } else if (sortBy === 'field') {
+      filtered.sort((a, b) => {
+        if (a.field !== b.field) return a.field - b.field;
+        return new Date(a.date).getTime() - new Date(b.date).getTime();
+      });
+    }
+
+    return filtered;
+  }, [matches, selectedTournament, selectedStatus, selectedField, globalFilter, sortBy]);
 
   // Update initialization: only set editedMatches if not already set
   useEffect(() => {
-    if (matches.length > 0 && editedMatches.length === 0) {
-      const sortedMatches = [...matches].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-      setEditedMatches(sortedMatches);
+    if (filteredMatches.length > 0 && editedMatches.length === 0) {
+      setEditedMatches(filteredMatches);
     }
-  }, [matches]);
+  }, [filteredMatches]);
 
   // Function to handle time change and update subsequent matches for the same field
   const handleTimeChange = (index: number, newTime: string) => {
@@ -118,13 +191,11 @@ export default function FixturesPage() {
     window.print();
   };
 
-  const [globalFilter, setGlobalFilter] = useState<string | undefined>(undefined);
-
   const columns: ColumnDef<Match>[] = useMemo(() => [
     {
       accessorKey: 'date',
       header: ({ column }) => (
-        <div className="text-left font-semibold text-primary dark:text-green-100">
+        <div className="text-left font-semibold text-slate-700 dark:text-slate-200">
           Tarih
           <ArrowUpDown className="ml-2 h-4 w-4 inline-block" />
         </div>
@@ -137,7 +208,7 @@ export default function FixturesPage() {
       accessorKey: 'date',
       id: 'time',
       header: ({ column }) => (
-        <div className="text-left font-semibold text-primary dark:text-green-100">
+        <div className="text-left font-semibold text-slate-700 dark:text-slate-200">
           Saat
           <ArrowUpDown className="ml-2 h-4 w-4 inline-block" />
         </div>
@@ -159,7 +230,7 @@ export default function FixturesPage() {
     {
       accessorKey: 'group',
       header: ({ column }) => (
-        <div className="text-left font-semibold text-primary dark:text-green-100">
+        <div className="text-left font-semibold text-slate-700 dark:text-slate-200">
           Grup
           <ArrowUpDown className="ml-2 h-4 w-4 inline-block" />
         </div>
@@ -167,7 +238,7 @@ export default function FixturesPage() {
       cell: ({ row }) => {
         const group = row.original.group;
         if (!group) return "-";
-        return <Badge variant="outline" className="bg-blue-50 hover:bg-blue-100 text-black border-blue-300 dark:bg-blue-950 dark:text-black dark:border-blue-800 dark:hover:bg-blue-900">{group}</Badge>;
+        return <Badge variant="outline" className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border-indigo-200 dark:bg-indigo-950/50 dark:text-indigo-300 dark:border-indigo-800 dark:hover:bg-indigo-900/50">{group}</Badge>;
       },
       enableSorting: true,
       enableGlobalFilter: true,
@@ -175,7 +246,7 @@ export default function FixturesPage() {
     {
       accessorKey: 'field',
       header: ({ column }) => (
-        <div className="text-left font-semibold text-primary dark:text-green-100">
+        <div className="text-left font-semibold text-slate-700 dark:text-slate-200">
           Saha
           <ArrowUpDown className="ml-2 h-4 w-4 inline-block" />
         </div>
@@ -193,7 +264,12 @@ export default function FixturesPage() {
             />
           );
         } else {
-          return `Saha ${row.getValue('field')}`;
+          return (
+            <div className="flex items-center gap-1">
+              <MapPin className="h-4 w-4 text-muted-foreground" />
+              <span>Saha {row.getValue('field')}</span>
+            </div>
+          );
         }
       },
       enableSorting: true,
@@ -202,7 +278,7 @@ export default function FixturesPage() {
     {
       accessorKey: 'homeTeam.name',
       header: ({ column }) => (
-        <div className="text-left font-semibold text-primary dark:text-green-100">
+        <div className="text-left font-semibold text-slate-700 dark:text-slate-200">
           Ev Sahibi
           <ArrowUpDown className="ml-2 h-4 w-4 inline-block" />
         </div>
@@ -214,12 +290,74 @@ export default function FixturesPage() {
     {
       accessorKey: 'awayTeam.name',
       header: ({ column }) => (
-        <div className="text-left font-semibold text-primary dark:text-green-100">
+        <div className="text-left font-semibold text-slate-700 dark:text-slate-200">
           Deplasman
           <ArrowUpDown className="ml-2 h-4 w-4 inline-block" />
         </div>
       ),
       cell: ({ row }) => row.original.awayTeam.name,
+      enableSorting: true,
+      enableGlobalFilter: true,
+    },
+    {
+      accessorKey: 'score',
+      header: ({ column }) => (
+        <div className="text-center font-semibold text-slate-700 dark:text-slate-200">
+          Skor
+        </div>
+      ),
+      cell: ({ row }) => {
+        const match = row.original;
+        const score = match.score;
+        if (!score) {
+          return (
+            <div className="text-center">
+              <Link href={`/matches/${match._id}`}>
+                <Button variant="ghost" size="sm" className="text-xs">
+                  Gir
+                </Button>
+              </Link>
+            </div>
+          );
+        }
+        return (
+          <div className="text-center font-bold">
+            <span className={score.homeTeam > score.awayTeam ? 'text-teal-600 dark:text-teal-400' : ''}>
+              {score.homeTeam}
+            </span>
+            {' - '}
+            <span className={score.awayTeam > score.homeTeam ? 'text-teal-600 dark:text-teal-400' : ''}>
+              {score.awayTeam}
+            </span>
+          </div>
+        );
+      },
+      enableSorting: false,
+      enableGlobalFilter: false,
+    },
+    {
+      accessorKey: 'status',
+      header: ({ column }) => (
+        <div className="text-center font-semibold text-slate-700 dark:text-slate-200">
+          Durum
+          <ArrowUpDown className="ml-2 h-4 w-4 inline-block" />
+        </div>
+      ),
+      cell: ({ row }) => {
+        const status = row.original.status;
+        switch (status) {
+          case 'scheduled':
+            return <div className="text-center"><Badge variant="outline" className="bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-950/50 dark:text-sky-300 dark:border-sky-800">Bekliyor</Badge></div>;
+          case 'in_progress':
+            return <div className="text-center"><Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-800">Devam Ediyor</Badge></div>;
+          case 'completed':
+            return <div className="text-center"><Badge variant="outline" className="bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-950/50 dark:text-teal-300 dark:border-teal-800">Tamamlandı</Badge></div>;
+          case 'cancelled':
+            return <div className="text-center"><Badge variant="outline" className="bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/50 dark:text-rose-300 dark:border-rose-800">İptal Edildi</Badge></div>;
+          default:
+            return <div className="text-center"><Badge variant="outline">-</Badge></div>;
+        }
+      },
       enableSorting: true,
       enableGlobalFilter: true,
     }
@@ -235,6 +373,7 @@ export default function FixturesPage() {
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <Link href="/matches">
@@ -244,46 +383,156 @@ export default function FixturesPage() {
           </Link>
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Fikstür</h1>
-            <p className="text-muted-foreground">Tüm turnuvaların maç programı</p>
+            <p className="text-sm text-muted-foreground">
+              Toplam {filteredMatches.length} maç
+              {selectedTournament !== 'all' && ` • Seçili turnuva: ${tournaments.find(t => t._id === selectedTournament)?.name}`}
+            </p>
           </div>
         </div>
-        <div className="flex items-center gap-4">
-          <Input
-            placeholder="Ara..."
-            value={globalFilter ?? ""}
-            onChange={(event) => setGlobalFilter(event.target.value)}
-            className="max-w-sm"
-          />
-          <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={() => setEditMode(!editMode)}>
-              {editMode ? 'Düzenlemeyi Bitir' : 'Fikstürü Düzenle'}
-            </Button>
-            {editMode && hasChanges && (
-              <Button 
-                onClick={handleSaveChanges}
-                disabled={saveChangesMutation.isPending}
-              >
-                {saveChangesMutation.isPending ? (
-                  <>
-                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent mr-2" />
-                    Kaydediliyor
-                  </>
-                ) : (
-                  'Değişiklikleri Kaydet'
-                )}
-              </Button>
-            )}
-            <Button
-              onClick={handlePrint}
-              className="print:hidden"
-              variant="outline"
-            >
-              <Printer className="h-4 w-4 mr-2" />
-              Yazdır
-            </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            onClick={handlePrint}
+            className="print:hidden"
+            variant="outline"
+            size="sm"
+          >
+            <Printer className="h-4 w-4 mr-2" />
+            Yazdır
+          </Button>
+        </div>
+      </div>
+
+      {/* Filters */}
+      <div className="space-y-4 bg-slate-50 dark:bg-slate-900/30 p-4 rounded-lg border border-slate-200 dark:border-slate-800">
+        <div className="flex items-center gap-2 mb-4">
+          <Filter className="h-4 w-4 text-slate-600 dark:text-slate-400" />
+          <h3 className="font-semibold text-slate-700 dark:text-slate-300">Filtreler</h3>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
+          {/* Search */}
+          <div>
+            <label className="text-xs font-medium text-slate-600 dark:text-slate-400 block mb-1">
+              Ara
+            </label>
+            <Input
+              placeholder="Takım veya grup adı..."
+              value={globalFilter}
+              onChange={(e) => setGlobalFilter(e.target.value)}
+              className="h-8"
+            />
+          </div>
+
+          {/* Tournament Filter */}
+          <div>
+            <label className="text-xs font-medium text-slate-600 dark:text-slate-400 block mb-1">
+              Turnuva
+            </label>
+            <Select value={selectedTournament} onValueChange={setSelectedTournament}>
+              <SelectTrigger className="h-8">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tüm Turnuvalar</SelectItem>
+                {tournaments.map(tour => (
+                  <SelectItem key={tour._id} value={tour._id}>
+                    {tour.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Status Filter */}
+          <div>
+            <label className="text-xs font-medium text-slate-600 dark:text-slate-400 block mb-1">
+              Durum
+            </label>
+            <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+              <SelectTrigger className="h-8">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tüm Durumlar</SelectItem>
+                <SelectItem value="scheduled">Bekliyor</SelectItem>
+                <SelectItem value="in_progress">Devam Ediyor</SelectItem>
+                <SelectItem value="completed">Tamamlandı</SelectItem>
+                <SelectItem value="cancelled">İptal Edildi</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Field Filter */}
+          <div>
+            <label className="text-xs font-medium text-slate-600 dark:text-slate-400 block mb-1">
+              Saha
+            </label>
+            <Select value={selectedField} onValueChange={setSelectedField}>
+              <SelectTrigger className="h-8">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tüm Sahalar</SelectItem>
+                {fields.map(field => (
+                  <SelectItem key={field} value={field.toString()}>
+                    Saha {field}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Sort Options */}
+          <div>
+            <label className="text-xs font-medium text-slate-600 dark:text-slate-400 block mb-1">
+              Sırala
+            </label>
+            <Select value={sortBy} onValueChange={(v) => setSortBy(v as 'date' | 'field')}>
+              <SelectTrigger className="h-8">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="date">Tarih</SelectItem>
+                <SelectItem value="field">Saha</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </div>
       </div>
+
+      {/* Edit Mode Controls */}
+      {editMode && (
+        <div className="flex items-center gap-2 p-4 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg">
+          <Button variant="outline" size="sm" onClick={() => setEditMode(false)}>
+            İptal
+          </Button>
+          {hasChanges && (
+            <Button 
+              onClick={handleSaveChanges}
+              disabled={saveChangesMutation.isPending}
+              size="sm"
+            >
+              {saveChangesMutation.isPending ? (
+                <>
+                  <div className="h-3 w-3 animate-spin rounded-full border-2 border-primary border-t-transparent mr-2" />
+                  Kaydediliyor
+                </>
+              ) : (
+                <>Değişiklikleri Kaydet</>
+              )}
+            </Button>
+          )}
+          <span className="text-xs text-slate-600 dark:text-slate-400 ml-auto">
+            {hasChanges ? '✓ Değişiklikler var' : 'Değişiklik yok'}
+          </span>
+        </div>
+      )}
+
+      {!editMode && (
+        <Button variant="outline" onClick={() => setEditMode(true)} size="sm">
+          Fikstürü Düzenle
+        </Button>
+      )}
 
       <style jsx global>{`
         @media print {
@@ -309,35 +558,35 @@ export default function FixturesPage() {
         }
       `}</style>
 
+      {/* Table */}
       <div className="print-content">
-        <div className="flex flex-col space-y-4">
-          <div className="flex items-center justify-between">
-            {matches.length > 0 && typeof matches[0].tournament !== 'string' && (
-              <h2 className="text-2xl font-semibold">{matches[0].tournament.name}</h2>
-            )}
+        {filteredMatches.length === 0 ? (
+          <div className="flex flex-col items-center justify-center min-h-[300px] text-center">
+            <Users className="h-12 w-12 text-muted-foreground mb-4" />
+            <h3 className="text-lg font-semibold text-slate-700 dark:text-slate-300">Sonuç yok</h3>
+            <p className="text-sm text-muted-foreground mt-2">Seçilen filtrelerle eşleşen maç bulunamadı</p>
           </div>
+        ) : (
           <DataTable 
             key={editMode ? 'edit' : 'view'}
             columns={columns} 
-            data={editedMatches.length > 0 ? editedMatches : matches}
+            data={editMode ? editedMatches : filteredMatches}
             rowClassName={(row) => {
               const status = row.status;
               switch (status) {
                 case 'in_progress':
-                  return 'bg-yellow-50 hover:bg-yellow-100 dark:bg-yellow-950/50 dark:hover:bg-yellow-950 dark:text-yellow-100 transition-colors';
+                  return 'bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/30 dark:hover:bg-amber-950/50 dark:text-amber-100 transition-colors';
                 case 'completed':
-                  return 'bg-green-50 hover:bg-green-100 dark:bg-green-950/50 dark:hover:bg-green-950 dark:text-green-100 transition-colors';
+                  return 'bg-teal-50 hover:bg-teal-100 dark:bg-teal-950/30 dark:hover:bg-teal-950/50 dark:text-teal-100 transition-colors';
                 case 'cancelled':
-                  return 'bg-red-50 hover:bg-red-100 dark:bg-red-950/50 dark:hover:bg-red-950 dark:text-red-100 transition-colors';
+                  return 'bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/30 dark:hover:bg-rose-950/50 dark:text-rose-100 transition-colors';
                 default:
-                  return 'hover:bg-gray-100 dark:hover:bg-gray-800 dark:text-gray-100 transition-colors';
+                  return 'hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:text-slate-100 transition-colors';
               }
             }}
             hideSearch
-            globalFilter={globalFilter}
-            onGlobalFilterChange={setGlobalFilter}
           />
-        </div>
+        )}
       </div>
     </div>
   );
