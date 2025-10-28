@@ -105,16 +105,46 @@ export default function BracketPage() {
     );
   }
 
-  // Crossover finals
-  const goldFinals = matches.filter(match => match.stage === 'gold_final');
-  const silverFinals = matches.filter(match => match.stage === 'silver_final');
-  const bronzeFinals = matches.filter(match => match.stage === 'bronze_final');
-  const prestigeFinals = matches.filter(match => match.stage === 'prestige_final');
-  
-  // Traditional knockout stages
+  // Get all knockout stages
   const quarterFinals = matches.filter(match => match.stage === 'quarter_final');
   const semiFinals = matches.filter(match => match.stage === 'semi_final');
-  const final = matches.find(match => match.stage === 'final');
+  const goldFinals = matches.filter(match => match.stage === 'gold_final');
+  const silverFinals = matches.filter(match => match.stage === 'silver_final');
+  
+  // Separate Silver and Gold brackets
+  // Silver bracket: Quarter finals with rank 3 vs 4
+  const silverQuarterFinals = quarterFinals.filter(match => {
+    const crossoverInfo = match.crossoverInfo;
+    return crossoverInfo && (
+      (crossoverInfo.homeTeamRank === 3 && crossoverInfo.awayTeamRank === 4) ||
+      (crossoverInfo.homeTeamRank === 4 && crossoverInfo.awayTeamRank === 3)
+    );
+  });
+  
+  // Gold bracket: Quarter finals with rank 1 vs 2
+  const goldQuarterFinals = quarterFinals.filter(match => {
+    const crossoverInfo = match.crossoverInfo;
+    return crossoverInfo && (
+      (crossoverInfo.homeTeamRank === 1 && crossoverInfo.awayTeamRank === 2) ||
+      (crossoverInfo.homeTeamRank === 2 && crossoverInfo.awayTeamRank === 1)
+    );
+  });
+  
+  // Silver semi finals
+  const silverSemiFinals = semiFinals.filter(match => {
+    const crossoverInfo = match.crossoverInfo;
+    return crossoverInfo && crossoverInfo.homeTeamGroup?.includes('Silver');
+  });
+  
+  // Gold semi finals
+  const goldSemiFinals = semiFinals.filter(match => {
+    const crossoverInfo = match.crossoverInfo;
+    return crossoverInfo && crossoverInfo.homeTeamGroup?.includes('Gold');
+  });
+  
+  // Finals (already separated by stage)
+  const silverFinal = silverFinals[0];
+  const goldFinal = goldFinals[0];
 
   const MatchCard = ({ match, className = '' }: { match: ExtendedMatch; className?: string }) => {
     const homeTeamName = getTeamDisplay(match, true, matches);
@@ -204,16 +234,6 @@ export default function BracketPage() {
 
   return (
     <div className="space-y-6 pb-8">
-      {/* Debug Info */}
-      {activeTournament && matches && (
-        <div className="bg-slate-100 dark:bg-slate-800 p-3 rounded text-xs">
-          <p>Tournament: {activeTournament.name} ({activeTournament.status})</p>
-          <p>Total Matches: {matches.length}</p>
-          <p>Quarter Finals: {quarterFinals.length} | Semi Finals: {semiFinals.length} | Final: {final ? 1 : 0}</p>
-          <p>Crossover: Gold {goldFinals.length} | Silver {silverFinals.length} | Bronze {bronzeFinals.length} | Prestige {prestigeFinals.length}</p>
-        </div>
-      )}
-
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
@@ -224,196 +244,35 @@ export default function BracketPage() {
           </Link>
           <div>
             <h1 className="text-3xl font-bold tracking-tight">{activeTournament?.name || 'Turnuva Ağacı'}</h1>
-            <p className="text-muted-foreground">Final Aşamaları ve Eşleşmeler</p>
+            <p className="text-muted-foreground">Eleme Aşaması Ağaçları</p>
           </div>
         </div>
         <Trophy className="h-12 w-12 text-yellow-500" />
       </div>
 
-      {/* Gold Finals Bracket - Separate Tree */}
-      {goldFinals.length > 0 && (
+      {/* GOLD BRACKET - Full Tree: QF → SF → F */}
+      {(goldQuarterFinals.length > 0 || goldSemiFinals.length > 0 || goldFinal) && (
         <div className="overflow-x-auto">
-          <div className="min-w-[800px] p-8 bg-gradient-to-br from-yellow-50 to-amber-50 dark:from-yellow-950 dark:to-amber-950 rounded-lg border-2 border-yellow-300 dark:border-yellow-700">
+          <div className="min-w-[1400px] p-8 bg-gradient-to-br from-yellow-50 to-amber-50 dark:from-yellow-950 dark:to-amber-950 rounded-lg border-2 border-yellow-300 dark:border-yellow-700">
             <h2 className="text-2xl font-bold text-center mb-8 flex items-center justify-center gap-2">
               <Trophy className="h-6 w-6 text-yellow-500" />
-              🥇 Altın Final Ağacı
-            </h2>
-            <div className="relative flex items-center justify-center gap-12">
-              {/* Semi-finals */}
-              <div className="flex flex-col gap-16">
-                {goldFinals.slice(0, 2).map((match, idx) => (
-                  <div key={match._id} className="relative">
-                    <MatchCard match={match} className="w-[280px]" />
-                    {/* Connector to final */}
-                    <div className="absolute left-full top-1/2 w-12 h-0.5 bg-yellow-400 dark:bg-yellow-600" />
-                    {idx === 0 && goldFinals.length > 2 && (
-                      <div className="absolute left-[calc(100%+3rem)] top-1/2 w-0.5 h-[calc(100%+4rem)] bg-yellow-400 dark:bg-yellow-600" />
-                    )}
-                  </div>
-                ))}
-              </div>
-              {/* Final */}
-              {goldFinals.length > 2 && (
-                <div className="flex flex-col items-center" style={{ marginTop: '80px' }}>
-                  <MatchCard match={goldFinals[2]} className="w-[280px]" />
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Silver Finals Bracket - Separate Tree */}
-      {silverFinals.length > 0 && (
-        <div className="overflow-x-auto">
-          <div className="min-w-[800px] p-8 bg-gradient-to-br from-gray-50 to-slate-50 dark:from-gray-950 dark:to-slate-950 rounded-lg border-2 border-gray-300 dark:border-gray-700">
-            <h2 className="text-2xl font-bold text-center mb-8 flex items-center justify-center gap-2">
-              <Trophy className="h-6 w-6 text-gray-500" />
-              🥈 Gümüş Final Ağacı
-            </h2>
-            <div className="relative flex items-center justify-center gap-12">
-              {/* Semi-finals */}
-              <div className="flex flex-col gap-16">
-                {silverFinals.slice(0, 2).map((match, idx) => (
-                  <div key={match._id} className="relative">
-                    <MatchCard match={match} className="w-[280px]" />
-                    {/* Connector to final */}
-                    <div className="absolute left-full top-1/2 w-12 h-0.5 bg-gray-400 dark:bg-gray-600" />
-                    {idx === 0 && silverFinals.length > 2 && (
-                      <div className="absolute left-[calc(100%+3rem)] top-1/2 w-0.5 h-[calc(100%+4rem)] bg-gray-400 dark:bg-gray-600" />
-                    )}
-                  </div>
-                ))}
-              </div>
-              {/* Final */}
-              {silverFinals.length > 2 && (
-                <div className="flex flex-col items-center" style={{ marginTop: '80px' }}>
-                  <MatchCard match={silverFinals[2]} className="w-[280px]" />
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Bronze Finals Bracket - Separate Tree */}
-      {bronzeFinals.length > 0 && (
-        <div className="overflow-x-auto">
-          <div className="min-w-[800px] p-8 bg-gradient-to-br from-orange-50 to-amber-50 dark:from-orange-950 dark:to-amber-950 rounded-lg border-2 border-orange-300 dark:border-orange-700">
-            <h2 className="text-2xl font-bold text-center mb-8 flex items-center justify-center gap-2">
-              <Trophy className="h-6 w-6 text-orange-500" />
-              🥉 Bronz Final Ağacı
-            </h2>
-            <div className="relative flex items-center justify-center gap-12">
-              {/* Semi-finals */}
-              <div className="flex flex-col gap-16">
-                {bronzeFinals.slice(0, 2).map((match, idx) => (
-                  <div key={match._id} className="relative">
-                    <MatchCard match={match} className="w-[280px]" />
-                    {/* Connector to final */}
-                    <div className="absolute left-full top-1/2 w-12 h-0.5 bg-orange-400 dark:bg-orange-600" />
-                    {idx === 0 && bronzeFinals.length > 2 && (
-                      <div className="absolute left-[calc(100%+3rem)] top-1/2 w-0.5 h-[calc(100%+4rem)] bg-orange-400 dark:bg-orange-600" />
-                    )}
-                  </div>
-                ))}
-              </div>
-              {/* Final */}
-              {bronzeFinals.length > 2 && (
-                <div className="flex flex-col items-center" style={{ marginTop: '80px' }}>
-                  <MatchCard match={bronzeFinals[2]} className="w-[280px]" />
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Prestige Finals Bracket - Separate Tree */}
-      {prestigeFinals.length > 0 && (
-        <div className="overflow-x-auto">
-          <div className="min-w-[800px] p-8 bg-gradient-to-br from-purple-50 to-indigo-50 dark:from-purple-950 dark:to-indigo-950 rounded-lg border-2 border-purple-300 dark:border-purple-700">
-            <h2 className="text-2xl font-bold text-center mb-8 flex items-center justify-center gap-2">
-              <Trophy className="h-6 w-6 text-purple-500" />
-              ⭐ Prestij Final Ağacı
-            </h2>
-            <div className="relative flex items-center justify-center gap-12">
-              {/* Semi-finals */}
-              <div className="flex flex-col gap-16">
-                {prestigeFinals.slice(0, 2).map((match, idx) => (
-                  <div key={match._id} className="relative">
-                    <MatchCard match={match} className="w-[280px]" />
-                    {/* Connector to final */}
-                    <div className="absolute left-full top-1/2 w-12 h-0.5 bg-purple-400 dark:bg-purple-600" />
-                    {idx === 0 && prestigeFinals.length > 2 && (
-                      <div className="absolute left-[calc(100%+3rem)] top-1/2 w-0.5 h-[calc(100%+4rem)] bg-purple-400 dark:bg-purple-600" />
-                    )}
-                  </div>
-                ))}
-              </div>
-              {/* Final */}
-              {prestigeFinals.length > 2 && (
-                <div className="flex flex-col items-center" style={{ marginTop: '80px' }}>
-                  <MatchCard match={prestigeFinals[2]} className="w-[280px]" />
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Traditional Knockout Bracket */}
-      {(quarterFinals.length > 0 || semiFinals.length > 0 || final) && (
-        <div className="overflow-x-auto">
-          <div className="min-w-[1400px] p-8 bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-950 rounded-lg">
-            <h2 className="text-2xl font-bold text-center mb-8 flex items-center justify-center gap-2">
-              <Trophy className="h-6 w-6 text-yellow-500" />
-              Eleme Aşaması Ağacı
+              🥇 Altın Bracket (1. ve 2. Sıralar)
             </h2>
             
-            {/* Bracket Tree Layout */}
             <div className="relative flex items-start justify-center gap-12 px-8">
-              {/* Quarter Finals Column */}
-              {quarterFinals.length > 0 && (
+              {/* Gold Quarter Finals */}
+              {goldQuarterFinals.length > 0 && (
                 <div className="flex flex-col items-center">
-                  <h3 className="text-lg font-bold mb-6 text-center bg-purple-100 dark:bg-purple-900 px-4 py-2 rounded-full">
-                    Çeyrek Final
-                  </h3>
-                  <div className="space-y-8">
-                    {quarterFinals.map((match, idx) => (
-                      <div key={match._id} className="relative">
-                        <MatchCard match={match} className="w-[280px]" />
-                        {/* Connector line to semi-finals */}
-                        <div className="absolute left-full top-1/2 w-12 h-0.5 bg-slate-300 dark:bg-slate-700" />
-                        {idx % 2 === 0 && idx + 1 < quarterFinals.length && (
-                          <>
-                            {/* Vertical line connecting pairs */}
-                            <div className="absolute left-[calc(100%+3rem)] top-1/2 w-0.5 h-[calc(100%+2rem)] bg-slate-300 dark:bg-slate-700" />
-                          </>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Semi Finals Column */}
-              {semiFinals.length > 0 && (
-                <div className="flex flex-col items-center" style={{ marginTop: quarterFinals.length > 0 ? '80px' : '0' }}>
-                  <h3 className="text-lg font-bold mb-6 text-center bg-blue-100 dark:bg-blue-900 px-4 py-2 rounded-full">
-                    Yarı Final
+                  <h3 className="text-lg font-bold mb-6 text-center bg-yellow-100 dark:bg-yellow-900 px-4 py-2 rounded-full">
+                    Altın Çeyrek Final
                   </h3>
                   <div className="space-y-16">
-                    {semiFinals.map((match, idx) => (
+                    {goldQuarterFinals.map((match, idx) => (
                       <div key={match._id} className="relative">
                         <MatchCard match={match} className="w-[280px]" />
-                        {/* Connector line to final */}
-                        <div className="absolute left-full top-1/2 w-12 h-0.5 bg-slate-300 dark:bg-slate-700" />
-                        {idx === 0 && semiFinals.length > 1 && (
-                          <>
-                            {/* Vertical line connecting semi-finals */}
-                            <div className="absolute left-[calc(100%+3rem)] top-1/2 w-0.5 h-[calc(100%+4rem)] bg-slate-300 dark:bg-slate-700" />
-                          </>
+                        <div className="absolute left-full top-1/2 w-12 h-0.5 bg-yellow-300 dark:bg-yellow-700" />
+                        {idx % 2 === 0 && idx + 1 < goldQuarterFinals.length && (
+                          <div className="absolute left-[calc(100%+3rem)] top-1/2 w-0.5 h-[calc(100%+2rem)] bg-yellow-300 dark:bg-yellow-700" />
                         )}
                       </div>
                     ))}
@@ -421,13 +280,97 @@ export default function BracketPage() {
                 </div>
               )}
 
-              {/* Final Column */}
-              {final && (
-                <div className="flex flex-col items-center" style={{ marginTop: semiFinals.length > 0 ? '160px' : '0' }}>
+              {/* Gold Semi Finals */}
+              {goldSemiFinals.length > 0 && (
+                <div className="flex flex-col items-center" style={{ marginTop: goldQuarterFinals.length > 0 ? '80px' : '0' }}>
                   <h3 className="text-lg font-bold mb-6 text-center bg-yellow-100 dark:bg-yellow-900 px-4 py-2 rounded-full">
-                    🏆 Final
+                    Altın Yarı Final
                   </h3>
-                  <MatchCard match={final} className="w-[280px]" />
+                  <div className="space-y-16">
+                    {goldSemiFinals.map((match, idx) => (
+                      <div key={match._id} className="relative">
+                        <MatchCard match={match} className="w-[280px]" />
+                        <div className="absolute left-full top-1/2 w-12 h-0.5 bg-yellow-300 dark:bg-yellow-700" />
+                        {idx === 0 && goldSemiFinals.length > 1 && (
+                          <div className="absolute left-[calc(100%+3rem)] top-1/2 w-0.5 h-[calc(100%+4rem)] bg-yellow-300 dark:bg-yellow-700" />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Gold Final */}
+              {goldFinal && (
+                <div className="flex flex-col items-center" style={{ marginTop: goldSemiFinals.length > 0 ? '160px' : '0' }}>
+                  <h3 className="text-lg font-bold mb-6 text-center bg-yellow-100 dark:bg-yellow-900 px-4 py-2 rounded-full">
+                    🏆 Altın Final
+                  </h3>
+                  <MatchCard match={goldFinal} className="w-[280px]" />
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SILVER BRACKET - Full Tree: QF → SF → F */}
+      {(silverQuarterFinals.length > 0 || silverSemiFinals.length > 0 || silverFinal) && (
+        <div className="overflow-x-auto">
+          <div className="min-w-[1400px] p-8 bg-gradient-to-br from-gray-50 to-slate-50 dark:from-gray-950 dark:to-slate-950 rounded-lg border-2 border-gray-300 dark:border-gray-700">
+            <h2 className="text-2xl font-bold text-center mb-8 flex items-center justify-center gap-2">
+              <Trophy className="h-6 w-6 text-gray-500" />
+              🥈 Gümüş Bracket (3. ve 4. Sıralar)
+            </h2>
+            
+            <div className="relative flex items-start justify-center gap-12 px-8">
+              {/* Silver Quarter Finals */}
+              {silverQuarterFinals.length > 0 && (
+                <div className="flex flex-col items-center">
+                  <h3 className="text-lg font-bold mb-6 text-center bg-gray-100 dark:bg-gray-900 px-4 py-2 rounded-full">
+                    Gümüş Çeyrek Final
+                  </h3>
+                  <div className="space-y-16">
+                    {silverQuarterFinals.map((match, idx) => (
+                      <div key={match._id} className="relative">
+                        <MatchCard match={match} className="w-[280px]" />
+                        <div className="absolute left-full top-1/2 w-12 h-0.5 bg-gray-300 dark:bg-gray-700" />
+                        {idx % 2 === 0 && idx + 1 < silverQuarterFinals.length && (
+                          <div className="absolute left-[calc(100%+3rem)] top-1/2 w-0.5 h-[calc(100%+2rem)] bg-gray-300 dark:bg-gray-700" />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Silver Semi Finals */}
+              {silverSemiFinals.length > 0 && (
+                <div className="flex flex-col items-center" style={{ marginTop: silverQuarterFinals.length > 0 ? '80px' : '0' }}>
+                  <h3 className="text-lg font-bold mb-6 text-center bg-gray-100 dark:bg-gray-900 px-4 py-2 rounded-full">
+                    Gümüş Yarı Final
+                  </h3>
+                  <div className="space-y-16">
+                    {silverSemiFinals.map((match, idx) => (
+                      <div key={match._id} className="relative">
+                        <MatchCard match={match} className="w-[280px]" />
+                        <div className="absolute left-full top-1/2 w-12 h-0.5 bg-gray-300 dark:bg-gray-700" />
+                        {idx === 0 && silverSemiFinals.length > 1 && (
+                          <div className="absolute left-[calc(100%+3rem)] top-1/2 w-0.5 h-[calc(100%+4rem)] bg-gray-300 dark:bg-gray-700" />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Silver Final */}
+              {silverFinal && (
+                <div className="flex flex-col items-center" style={{ marginTop: silverSemiFinals.length > 0 ? '160px' : '0' }}>
+                  <h3 className="text-lg font-bold mb-6 text-center bg-gray-100 dark:bg-gray-900 px-4 py-2 rounded-full">
+                    🏆 Gümüş Final
+                  </h3>
+                  <MatchCard match={silverFinal} className="w-[280px]" />
                 </div>
               )}
             </div>
@@ -436,11 +379,11 @@ export default function BracketPage() {
       )}
 
       {/* No Finals Message */}
-      {goldFinals.length === 0 && silverFinals.length === 0 && bronzeFinals.length === 0 && prestigeFinals.length === 0 && quarterFinals.length === 0 && semiFinals.length === 0 && !final && (
+      {!goldFinal && !silverFinal && goldQuarterFinals.length === 0 && silverQuarterFinals.length === 0 && (
         <div className="flex flex-col items-center justify-center min-h-[300px] text-center">
           <Trophy className="w-12 h-12 text-muted-foreground mb-4" />
-          <h3 className="text-lg font-semibold mb-2">Henüz final maçı bulunmuyor</h3>
-          <p className="text-muted-foreground">Final aşamaları oluşturulduktan sonra burada görüntülenecek</p>
+          <h3 className="text-lg font-semibold mb-2">Henüz eleme maçı yok</h3>
+          <p className="text-muted-foreground">Grup maçları tamamlandıktan sonra eleme ağacı oluşturulacak</p>
         </div>
       )}
     </div>
