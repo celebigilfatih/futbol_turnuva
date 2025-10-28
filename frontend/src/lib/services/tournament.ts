@@ -88,5 +88,10 @@ export const tournamentService = {
   // Final maçını oluştur
   generateFinal: async (id: string): Promise<ApiResponse<GenerateFixtureResponse>> => {
     return post<GenerateFixtureResponse>(`${ENDPOINT}/${id}/final`, {});
+  },
+
+  // Knockout maçlarını nitelikli takımlarla güncelle
+  updateKnockoutTeamsWithQualified: async (id: string): Promise<ApiResponse<any>> => {
+    return put<any>(`${ENDPOINT}/${id}/knockout/update-teams`, {});
   }
 }; 

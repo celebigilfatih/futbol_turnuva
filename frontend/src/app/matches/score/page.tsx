@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { useState } from 'react';
 import { matchService } from '@/lib/services/match';
+import { tournamentService } from '@/lib/services/tournament';
 import type { Match } from '@/types/api';
 import { useToast } from '@/components/ui/use-toast';
 import {
@@ -56,7 +57,19 @@ export default function ScoreEntryPage() {
 
   const updateScoreMutation = useMutation({
     mutationFn: async (data: { matchId: string; score: ScoreInput }) => {
-      return matchService.updateScore(data.matchId, data.score);
+      const result = await matchService.updateScore(data.matchId, data.score);
+      const match = matches.find(m => m._id === data.matchId);
+      if (match && match.stage === 'group' && typeof match.tournament === 'object') {
+        const groupMatches = matches.filter(m => m.stage === 'group' && m.tournament._id === match.tournament._id);
+        if (groupMatches.every(m => m.status === 'completed' || m._id === data.matchId)) {
+          try {
+            await tournamentService.updateKnockoutTeamsWithQualified(match.tournament._id);
+          } catch (error) {
+            console.log('Knockout update skipped');
+          }
+        }
+      }
+      return result;
     },
     onSuccess: () => {
       toast({

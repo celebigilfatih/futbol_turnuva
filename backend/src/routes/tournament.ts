@@ -10,7 +10,8 @@ import {
   removeTeam,
   getGroups,
   generateFixture,
-  deleteFixture
+  deleteFixture,
+  updateKnockoutTeamsWithQualified
 } from '../controllers/tournament';
 import { authenticate, isAdmin, optionalAuth } from '../middleware/auth';
 
@@ -30,5 +31,6 @@ router.post('/:id/teams', authenticate, isAdmin, addTeam);
 router.delete('/:id/teams/:teamId', authenticate, isAdmin, removeTeam);
 router.post('/:id/fixture', authenticate, isAdmin, generateFixture);
 router.delete('/:id/fixture', authenticate, isAdmin, deleteFixture);
+router.put('/:id/knockout/update-teams', authenticate, isAdmin, updateKnockoutTeamsWithQualified);
 
 export default router; 

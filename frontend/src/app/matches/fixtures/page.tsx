@@ -93,7 +93,48 @@ export default function FixturesPage() {
 
     // Sort
     if (sortBy === 'date') {
-      filtered.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      filtered.sort((a, b) => {
+        // Helper function to get stage sort order with Silver/Gold distinction
+        const getStageSortOrder = (match: Match) => {
+          const crossoverInfo = (match as any).crossoverInfo;
+          
+          const baseStageOrder: { [key: string]: number } = {
+            'group': 0,
+            'quarter_final': 1,
+            'semi_final': 5,
+            'silver_final': 9,      // Silver Final
+            'gold_final': 10,       // Gold Final  
+            'bronze_final': 11,
+            'prestige_final': 12
+          };
+          
+          const baseOrder = baseStageOrder[match.stage] ?? 99;
+          
+          // For quarter_final and semi_final, distinguish Silver vs Gold within same stage
+          if (match.stage === 'quarter_final' && crossoverInfo) {
+            const isGoldMatch = (crossoverInfo.homeTeamRank === 1 && crossoverInfo.awayTeamRank === 2) ||
+                               (crossoverInfo.homeTeamRank === 2 && crossoverInfo.awayTeamRank === 1);
+            return baseOrder + (isGoldMatch ? 2 : 0); // Silver QF: 1, Gold QF: 3
+          } else if (match.stage === 'semi_final' && crossoverInfo) {
+            const isGoldMatch = crossoverInfo.homeTeamGroup?.includes('Gold');
+            return baseOrder + (isGoldMatch ? 2 : 0); // Silver SF: 5, Gold SF: 7
+          }
+          
+          return baseOrder;
+        };
+
+        // For knockout matches, sort by stage order
+        if (a.stage !== 'group' && b.stage !== 'group') {
+          const aStageOrder = getStageSortOrder(a);
+          const bStageOrder = getStageSortOrder(b);
+          if (aStageOrder !== bStageOrder) {
+            return aStageOrder - bStageOrder;
+          }
+        }
+
+        // Group matches and non-matching stages: sort by date
+        return new Date(a.date).getTime() - new Date(b.date).getTime();
+      });
     } else if (sortBy === 'field') {
       filtered.sort((a, b) => {
         if (a.field !== b.field) return a.field - b.field;
@@ -231,14 +272,83 @@ export default function FixturesPage() {
       accessorKey: 'group',
       header: ({ column }) => (
         <div className="text-left font-semibold text-slate-700 dark:text-slate-200">
-          Grup
+          Grup/Aşama
           <ArrowUpDown className="ml-2 h-4 w-4 inline-block" />
         </div>
       ),
       cell: ({ row }) => {
-        const group = row.original.group;
-        if (!group) return "-";
-        return <Badge variant="outline" className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border-indigo-200 dark:bg-indigo-950/50 dark:text-indigo-300 dark:border-indigo-800 dark:hover:bg-indigo-900/50">{group}</Badge>;
+        const match = row.original;
+        
+        // Helper function to get stage label in Turkish
+        const getStageName = (stage: string) => {
+          const stageMap: { [key: string]: string } = {
+            'group': 'Grup Maçı',
+            'gold_final': 'Altın Final',
+            'silver_final': 'Gümüş Final',
+            'bronze_final': 'Bronz Final',
+            'prestige_final': 'Prestij Final'
+          };
+          return stageMap[stage] || stage;
+        };
+
+        // For knockout stages (quarter_final, semi_final), determine if Silver or Gold
+        // based on crossoverInfo:
+        // - Silver = 3rd vs 4th crossover OR winners from Silver bracket
+        // - Gold = 1st vs 2nd crossover OR winners from Gold bracket
+        // Note: Finals use gold_final/silver_final stages directly
+        const getKnockoutStageName = (match: Match) => {
+          if (match.stage === 'group' || match.stage === 'gold_final' || match.stage === 'silver_final' || match.stage === 'bronze_final' || match.stage === 'prestige_final') {
+            return getStageName(match.stage);
+          }
+
+          const crossoverInfo = (match as any).crossoverInfo;
+          
+          if (!crossoverInfo) {
+            return match.stage;
+          }
+          
+          // Determine if this is a Silver or Gold match based on crossoverInfo
+          let isSilverMatch = false;
+          let isGoldMatch = false;
+          
+          if (match.stage === 'quarter_final') {
+            // Silver QF: 3rd vs 4th crossover (3 vs 4, 4 vs 3)
+            isSilverMatch = (crossoverInfo.homeTeamRank === 3 && crossoverInfo.awayTeamRank === 4) ||
+                           (crossoverInfo.homeTeamRank === 4 && crossoverInfo.awayTeamRank === 3);
+            // Gold QF: 1st vs 2nd crossover (1 vs 2, 2 vs 1)
+            isGoldMatch = (crossoverInfo.homeTeamRank === 1 && crossoverInfo.awayTeamRank === 2) ||
+                         (crossoverInfo.homeTeamRank === 2 && crossoverInfo.awayTeamRank === 1);
+          } else if (match.stage === 'semi_final') {
+            // Silver SF: Winners from Silver QF
+            isSilverMatch = crossoverInfo.homeTeamGroup?.includes('Silver');
+            // Gold SF: Winners from Gold QF
+            isGoldMatch = crossoverInfo.homeTeamGroup?.includes('Gold');
+          }
+          
+          if (match.stage === 'quarter_final') {
+            return isGoldMatch ? 'Altın Çeyrek Final' : 'Gümüş Çeyrek Final';
+          } else if (match.stage === 'semi_final') {
+            return isGoldMatch ? 'Altın Yarı Final' : 'Gümüş Yarı Final';
+          }
+          
+          return match.stage;
+        };
+
+        // For group stage, show group name
+        if (match.stage === 'group') {
+          return (
+            <Badge variant="outline" className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border-indigo-200 dark:bg-indigo-950/50 dark:text-indigo-300 dark:border-indigo-800 dark:hover:bg-indigo-900/50">
+              {match.group || '-'}
+            </Badge>
+          );
+        }
+        
+        // For knockout stages, show stage name
+        return (
+          <Badge variant="outline" className="bg-purple-50 hover:bg-purple-100 text-purple-700 border-purple-200 dark:bg-purple-950/50 dark:text-purple-300 dark:border-purple-800 dark:hover:bg-purple-900/50">
+            {getKnockoutStageName(match)}
+          </Badge>
+        );
       },
       enableSorting: true,
       enableGlobalFilter: true,
@@ -283,7 +393,22 @@ export default function FixturesPage() {
           <ArrowUpDown className="ml-2 h-4 w-4 inline-block" />
         </div>
       ),
-      cell: ({ row }) => row.original.homeTeam.name,
+      cell: ({ row }) => {
+        const match = row.original;
+        
+        // If match has no score and is a knockout stage, show placeholder
+        if (!match.score && match.stage !== 'group' && match.crossoverInfo) {
+          const homeRank = match.crossoverInfo.homeTeamRank;
+          const homeGroup = match.crossoverInfo.homeTeamGroup.replace('Grup ', '');
+          return (
+            <span className="font-semibold text-slate-600 dark:text-slate-400">
+              {homeGroup}{homeRank}
+            </span>
+          );
+        }
+        
+        return match.homeTeam.name;
+      },
       enableSorting: true,
       enableGlobalFilter: true,
     },
@@ -295,7 +420,22 @@ export default function FixturesPage() {
           <ArrowUpDown className="ml-2 h-4 w-4 inline-block" />
         </div>
       ),
-      cell: ({ row }) => row.original.awayTeam.name,
+      cell: ({ row }) => {
+        const match = row.original;
+        
+        // If match has no score and is a knockout stage, show placeholder
+        if (!match.score && match.stage !== 'group' && match.crossoverInfo) {
+          const awayRank = match.crossoverInfo.awayTeamRank;
+          const awayGroup = match.crossoverInfo.awayTeamGroup.replace('Grup ', '');
+          return (
+            <span className="font-semibold text-slate-600 dark:text-slate-400">
+              {awayGroup}{awayRank}
+            </span>
+          );
+        }
+        
+        return match.awayTeam.name;
+      },
       enableSorting: true,
       enableGlobalFilter: true,
     },

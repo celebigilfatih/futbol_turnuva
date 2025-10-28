@@ -7,7 +7,7 @@ import { ITeam } from '../models/Team';
 import { ITournament } from '../models/Tournament';
 
 // Maç aşamaları için tip tanımı
-type MatchStage = 'group' | 'quarter_final' | 'semi_final' | 'final';
+type MatchStage = 'group' | 'quarter_final' | 'semi_final' | 'final' | 'gold_final' | 'silver_final' | 'bronze_final' | 'prestige_final';
 type MatchStatus = 'scheduled' | 'in_progress' | 'completed' | 'cancelled';
 
 interface FixtureMatch {
@@ -412,71 +412,94 @@ export const generateFixture = async (req: Request, res: Response) => {
     await Match.deleteMany({ tournament: tournament._id });
     await Match.insertMany(scheduledMatches);
 
-    // Automatically generate quarter finals and semi finals if tournament has 2+ groups
+    // Automatically generate knockout stages if tournament has 2+ groups
     let knockoutMatches: PartialFixtureMatch[] = [];
     if (tournament.groups.length >= 2) {
-      // Generate quarter finals (placeholder teams - will be filled after group stage)
       const groupNames = tournament.groups.map(g => g.name);
       const quarterFinals: PartialFixtureMatch[] = [];
       
-      // Create crossover quarter final matches (A1 vs B2, B1 vs A2, etc.)
+      // For each pair of groups (A-B, C-D, etc.)
       for (let i = 0; i < groupNames.length; i += 2) {
         const groupA = groupNames[i];
         const groupB = groupNames[i + 1];
         
         if (groupA && groupB) {
-          // Get placeholder team IDs (first teams from each group as placeholders)
           const groupATeams = tournament.groups[i].teams;
           const groupBTeams = tournament.groups[i + 1].teams;
           
-          quarterFinals.push(
-            {
-              tournament: tournament._id,
-              homeTeam: (typeof groupATeams[0] === 'string') ? new mongoose.Types.ObjectId(groupATeams[0]) : ((groupATeams[0] as any)._id),
-              awayTeam: (typeof groupBTeams[1] === 'string') ? new mongoose.Types.ObjectId(groupBTeams[1]) : ((groupBTeams[1] as any)._id),
-              stage: 'quarter_final',
-              status: 'scheduled',
-              extraTimeEnabled: tournament.extraTimeEnabled,
-              penaltyShootoutEnabled: tournament.penaltyShootoutEnabled,
-              crossoverInfo: {
-                homeTeamGroup: groupA,
-                homeTeamRank: 1,
-                awayTeamGroup: groupB,
-                awayTeamRank: 2
-              }
-            },
-            {
-              tournament: tournament._id,
-              homeTeam: (typeof groupBTeams[0] === 'string') ? new mongoose.Types.ObjectId(groupBTeams[0]) : ((groupBTeams[0] as any)._id),
-              awayTeam: (typeof groupATeams[1] === 'string') ? new mongoose.Types.ObjectId(groupATeams[1]) : ((groupATeams[1] as any)._id),
-              stage: 'quarter_final',
-              status: 'scheduled',
-              extraTimeEnabled: tournament.extraTimeEnabled,
-              penaltyShootoutEnabled: tournament.penaltyShootoutEnabled,
-              crossoverInfo: {
-                homeTeamGroup: groupB,
-                homeTeamRank: 1,
-                awayTeamGroup: groupA,
-                awayTeamRank: 2
-              }
-            }
-          );
+          // SILVER QUARTER FINALS (3rd vs 4th crossover)
+          // Match 1: A3 vs B4
+          quarterFinals.push({
+            tournament: tournament._id,
+            homeTeam: (typeof groupATeams[2] === 'string') ? new mongoose.Types.ObjectId(groupATeams[2]) : ((groupATeams[2] as any)?._id || groupATeams[0]),
+            awayTeam: (typeof groupBTeams[3] === 'string') ? new mongoose.Types.ObjectId(groupBTeams[3]) : ((groupBTeams[3] as any)?._id || groupBTeams[1]),
+            stage: 'quarter_final',
+            status: 'scheduled',
+            extraTimeEnabled: tournament.extraTimeEnabled,
+            penaltyShootoutEnabled: tournament.penaltyShootoutEnabled,
+            crossoverInfo: { homeTeamGroup: groupA, homeTeamRank: 3, awayTeamGroup: groupB, awayTeamRank: 4 }
+          });
+          
+          // Match 2: A4 vs B3
+          quarterFinals.push({
+            tournament: tournament._id,
+            homeTeam: (typeof groupATeams[3] === 'string') ? new mongoose.Types.ObjectId(groupATeams[3]) : ((groupATeams[3] as any)?._id || groupATeams[1]),
+            awayTeam: (typeof groupBTeams[2] === 'string') ? new mongoose.Types.ObjectId(groupBTeams[2]) : ((groupBTeams[2] as any)?._id || groupBTeams[0]),
+            stage: 'quarter_final',
+            status: 'scheduled',
+            extraTimeEnabled: tournament.extraTimeEnabled,
+            penaltyShootoutEnabled: tournament.penaltyShootoutEnabled,
+            crossoverInfo: { homeTeamGroup: groupA, homeTeamRank: 4, awayTeamGroup: groupB, awayTeamRank: 3 }
+          });
         }
       }
       
-      // Schedule quarter finals after the last group match
+      // GOLD QUARTER FINALS (1st vs 2nd crossover) - add after Silver QFs
+      for (let i = 0; i < groupNames.length; i += 2) {
+        const groupA = groupNames[i];
+        const groupB = groupNames[i + 1];
+        
+        if (groupA && groupB) {
+          const groupATeams = tournament.groups[i].teams;
+          const groupBTeams = tournament.groups[i + 1].teams;
+          
+          // Match 1: A1 vs B2
+          quarterFinals.push({
+            tournament: tournament._id,
+            homeTeam: (typeof groupATeams[0] === 'string') ? new mongoose.Types.ObjectId(groupATeams[0]) : ((groupATeams[0] as any)._id),
+            awayTeam: (typeof groupBTeams[1] === 'string') ? new mongoose.Types.ObjectId(groupBTeams[1]) : ((groupBTeams[1] as any)._id),
+            stage: 'quarter_final',
+            status: 'scheduled',
+            extraTimeEnabled: tournament.extraTimeEnabled,
+            penaltyShootoutEnabled: tournament.penaltyShootoutEnabled,
+            crossoverInfo: { homeTeamGroup: groupA, homeTeamRank: 1, awayTeamGroup: groupB, awayTeamRank: 2 }
+          });
+          
+          // Match 2: A2 vs B1
+          quarterFinals.push({
+            tournament: tournament._id,
+            homeTeam: (typeof groupATeams[1] === 'string') ? new mongoose.Types.ObjectId(groupATeams[1]) : ((groupATeams[1] as any)._id),
+            awayTeam: (typeof groupBTeams[0] === 'string') ? new mongoose.Types.ObjectId(groupBTeams[0]) : ((groupBTeams[0] as any)._id),
+            stage: 'quarter_final',
+            status: 'scheduled',
+            extraTimeEnabled: tournament.extraTimeEnabled,
+            penaltyShootoutEnabled: tournament.penaltyShootoutEnabled,
+            crossoverInfo: { homeTeamGroup: groupA, homeTeamRank: 2, awayTeamGroup: groupB, awayTeamRank: 1 }
+          });
+        }
+      }
+      
+      // Schedule all quarter finals
       const lastGroupMatch = scheduledMatches[scheduledMatches.length - 1];
       let qfDate = new Date(lastGroupMatch.date);
-      qfDate.setDate(qfDate.getDate() + 1); // Next day
-      qfDate.setHours(0, 0, 0, 0); // Reset to midnight
+      qfDate.setDate(qfDate.getDate() + 1);
+      qfDate.setHours(0, 0, 0, 0);
       const [startHour, startMinute] = tournament.startTime.split(':').map(Number);
       qfDate.setHours(startHour, startMinute, 0, 0);
       
       for (let i = 0; i < quarterFinals.length; i++) {
         (quarterFinals[i] as any).date = new Date(qfDate);
         (quarterFinals[i] as any).field = (i % tournament.numberOfFields) + 1;
-        
-        // Move to next time slot after every numberOfFields matches
         if ((i + 1) % tournament.numberOfFields === 0) {
           qfDate.setMinutes(qfDate.getMinutes() + slotInterval);
         }
@@ -484,94 +507,121 @@ export const generateFixture = async (req: Request, res: Response) => {
       
       knockoutMatches = [...quarterFinals];
       
-      // Generate semi finals (placeholder teams)
+      // SEMI FINALS
       const semiFinals: PartialFixtureMatch[] = [];
-      if (quarterFinals.length >= 2) {
-        // SF1: Winner of QF1 vs Winner of QF2
-        // SF2: Winner of QF3 vs Winner of QF4 (if exists)
-        const firstQF = quarterFinals[0];
-        semiFinals.push(
-          {
-            tournament: tournament._id,
-            homeTeam: firstQF.homeTeam,
-            awayTeam: quarterFinals[1]?.homeTeam || firstQF.awayTeam,
-            stage: 'semi_final',
-            status: 'scheduled',
-            extraTimeEnabled: tournament.extraTimeEnabled,
-            penaltyShootoutEnabled: tournament.penaltyShootoutEnabled,
-            crossoverInfo: {
-              homeTeamGroup: 'QF1',
-              homeTeamRank: 1,
-              awayTeamGroup: 'QF2',
-              awayTeamRank: 1
-            }
-          }
-        );
-        
-        if (quarterFinals.length >= 4) {
-          semiFinals.push(
-            {
-              tournament: tournament._id,
-              homeTeam: quarterFinals[2].homeTeam,
-              awayTeam: quarterFinals[3].homeTeam,
-              stage: 'semi_final',
-              status: 'scheduled',
-              extraTimeEnabled: tournament.extraTimeEnabled,
-              penaltyShootoutEnabled: tournament.penaltyShootoutEnabled,
-              crossoverInfo: {
-                homeTeamGroup: 'QF3',
-                homeTeamRank: 1,
-                awayTeamGroup: 'QF4',
-                awayTeamRank: 1
-              }
-            }
-          );
+      const numSilverQFs = groupNames.length; // 2 Silver QFs per group pair
+      const numGoldQFs = groupNames.length;   // 2 Gold QFs per group pair
+      
+      // Silver Semi Final 1: Winner of Silver QF1 vs Winner of Silver QF2
+      if (numSilverQFs >= 2) {
+        semiFinals.push({
+          tournament: tournament._id,
+          homeTeam: quarterFinals[0].homeTeam,
+          awayTeam: quarterFinals[1].homeTeam,
+          stage: 'semi_final',
+          status: 'scheduled',
+          extraTimeEnabled: tournament.extraTimeEnabled,
+          penaltyShootoutEnabled: tournament.penaltyShootoutEnabled,
+          crossoverInfo: { homeTeamGroup: 'Silver_QF1', homeTeamRank: 1, awayTeamGroup: 'Silver_QF2', awayTeamRank: 1 }
+        });
+      }
+      
+      // Silver Semi Final 2 (if 4 groups): Winner of Silver QF3 vs Winner of Silver QF4
+      if (numSilverQFs >= 4) {
+        semiFinals.push({
+          tournament: tournament._id,
+          homeTeam: quarterFinals[2].homeTeam,
+          awayTeam: quarterFinals[3].homeTeam,
+          stage: 'semi_final',
+          status: 'scheduled',
+          extraTimeEnabled: tournament.extraTimeEnabled,
+          penaltyShootoutEnabled: tournament.penaltyShootoutEnabled,
+          crossoverInfo: { homeTeamGroup: 'Silver_QF3', homeTeamRank: 1, awayTeamGroup: 'Silver_QF4', awayTeamRank: 1 }
+        });
+      }
+      
+      // Gold Semi Final 1: Winner of Gold QF1 vs Winner of Gold QF2
+      const goldQFStart = numSilverQFs;
+      if (numGoldQFs >= 2) {
+        semiFinals.push({
+          tournament: tournament._id,
+          homeTeam: quarterFinals[goldQFStart].homeTeam,
+          awayTeam: quarterFinals[goldQFStart + 1].homeTeam,
+          stage: 'semi_final',
+          status: 'scheduled',
+          extraTimeEnabled: tournament.extraTimeEnabled,
+          penaltyShootoutEnabled: tournament.penaltyShootoutEnabled,
+          crossoverInfo: { homeTeamGroup: 'Gold_QF1', homeTeamRank: 1, awayTeamGroup: 'Gold_QF2', awayTeamRank: 1 }
+        });
+      }
+      
+      // Gold Semi Final 2 (if 4 groups): Winner of Gold QF3 vs Winner of Gold QF4
+      if (numGoldQFs >= 4) {
+        semiFinals.push({
+          tournament: tournament._id,
+          homeTeam: quarterFinals[goldQFStart + 2].homeTeam,
+          awayTeam: quarterFinals[goldQFStart + 3].homeTeam,
+          stage: 'semi_final',
+          status: 'scheduled',
+          extraTimeEnabled: tournament.extraTimeEnabled,
+          penaltyShootoutEnabled: tournament.penaltyShootoutEnabled,
+          crossoverInfo: { homeTeamGroup: 'Gold_QF3', homeTeamRank: 1, awayTeamGroup: 'Gold_QF4', awayTeamRank: 1 }
+        });
+      }
+      
+      // Schedule semi finals
+      let sfDate = new Date(qfDate);
+      sfDate.setDate(sfDate.getDate() + 1);
+      sfDate.setHours(startHour, startMinute, 0, 0);
+      
+      for (let i = 0; i < semiFinals.length; i++) {
+        (semiFinals[i] as any).date = new Date(sfDate);
+        (semiFinals[i] as any).field = (i % tournament.numberOfFields) + 1;
+        if ((i + 1) % tournament.numberOfFields === 0) {
+          sfDate.setMinutes(sfDate.getMinutes() + slotInterval);
         }
+      }
+      
+      knockoutMatches = [...knockoutMatches, ...semiFinals];
+      
+      // FINALS
+      if (semiFinals.length >= 2) {
+        // Silver Final: Winner of Silver SF1 vs Winner of Silver SF2
+        const silverFinal: PartialFixtureMatch = {
+          tournament: tournament._id,
+          homeTeam: semiFinals[0].homeTeam,
+          awayTeam: semiFinals[1]?.homeTeam || semiFinals[0].awayTeam,
+          stage: 'silver_final',
+          status: 'scheduled',
+          extraTimeEnabled: tournament.extraTimeEnabled,
+          penaltyShootoutEnabled: tournament.penaltyShootoutEnabled,
+          crossoverInfo: { homeTeamGroup: 'Silver_SF1', homeTeamRank: 1, awayTeamGroup: 'Silver_SF2', awayTeamRank: 1 }
+        };
         
-        // Schedule semi finals after quarter finals
-        let sfDate = new Date(qfDate);
-        sfDate.setDate(sfDate.getDate() + 1); // Next day
-        sfDate.setHours(startHour, startMinute, 0, 0);
+        // Gold Final: Winner of Gold SF1 vs Winner of Gold SF2
+        const goldSFIndex = semiFinals.length >= 4 ? 2 : 1;
+        const goldFinal: PartialFixtureMatch = {
+          tournament: tournament._id,
+          homeTeam: semiFinals[goldSFIndex]?.homeTeam || semiFinals[0].homeTeam,
+          awayTeam: semiFinals[goldSFIndex + 1]?.homeTeam || semiFinals[1]?.homeTeam || semiFinals[0].awayTeam,
+          stage: 'gold_final',
+          status: 'scheduled',
+          extraTimeEnabled: tournament.extraTimeEnabled,
+          penaltyShootoutEnabled: tournament.penaltyShootoutEnabled,
+          crossoverInfo: { homeTeamGroup: 'Gold_SF1', homeTeamRank: 1, awayTeamGroup: 'Gold_SF2', awayTeamRank: 1 }
+        };
         
-        for (let i = 0; i < semiFinals.length; i++) {
-          (semiFinals[i] as any).date = new Date(sfDate);
-          (semiFinals[i] as any).field = (i % tournament.numberOfFields) + 1;
-          
-          if ((i + 1) % tournament.numberOfFields === 0) {
-            sfDate.setMinutes(sfDate.getMinutes() + slotInterval);
-          }
-        }
+        // Schedule finals
+        let finalDate = new Date(sfDate);
+        finalDate.setDate(finalDate.getDate() + 1);
+        finalDate.setHours(startHour, startMinute, 0, 0);
         
-        knockoutMatches = [...knockoutMatches, ...semiFinals];
+        (silverFinal as any).date = finalDate;
+        (silverFinal as any).field = 1;
+        (goldFinal as any).date = new Date(finalDate);
+        (goldFinal as any).field = 2;
         
-        // Generate final match
-        if (semiFinals.length >= 2) {
-          const finalMatch: PartialFixtureMatch = {
-            tournament: tournament._id,
-            homeTeam: semiFinals[0].homeTeam,
-            awayTeam: semiFinals[1].homeTeam,
-            stage: 'final',
-            status: 'scheduled',
-            extraTimeEnabled: tournament.extraTimeEnabled,
-            penaltyShootoutEnabled: tournament.penaltyShootoutEnabled,
-            crossoverInfo: {
-              homeTeamGroup: 'SF1',
-              homeTeamRank: 1,
-              awayTeamGroup: 'SF2',
-              awayTeamRank: 1
-            }
-          };
-          
-          // Schedule final after semi finals
-          let finalDate = new Date(sfDate);
-          finalDate.setDate(finalDate.getDate() + 1); // Next day
-          finalDate.setHours(startHour, startMinute, 0, 0);
-          
-          (finalMatch as any).date = finalDate;
-          (finalMatch as any).field = 1;
-          
-          knockoutMatches = [...knockoutMatches, finalMatch];
-        }
+        knockoutMatches = [...knockoutMatches, silverFinal, goldFinal];
       }
       
       // Insert knockout matches
@@ -1407,5 +1457,97 @@ export const generateQuarterFinals = async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Çeyrek final maçları oluşturma hatası:', error);
     res.status(500).json({ message: 'Çeyrek final maçları oluşturulurken bir hata oluştu.' });
+  }
+};
+
+// Knockout maçlarındaki takımları nitelikli takımlarla güncelle
+export const updateKnockoutTeamsWithQualified = async (req: Request, res: Response) => {
+  try {
+    const tournamentId = req.params.id;
+    const tournament = await Tournament.findById(tournamentId);
+
+    if (!tournament) {
+      return res.status(404).json({ message: 'Turnuva bulunamadı.' });
+    }
+
+    // Tüm grup maçlarının tamamlandığını kontrol et
+    const allGroupMatches = await Match.find({
+      tournament: tournamentId,
+      stage: 'group'
+    });
+
+    const pendingGroupMatches = allGroupMatches.filter(m => m.status !== 'completed' && m.status !== 'cancelled');
+    if (pendingGroupMatches.length > 0) {
+      return res.status(400).json({
+        message: 'Tüm grup maçları tamamlanmadığı için knockout maçları güncellenemiyor.',
+        pendingCount: pendingGroupMatches.length
+      });
+    }
+
+    // Her grup için nitelikli takımları al
+    const qualifiedTeams = new Map<string, { rank: number; teamId: mongoose.Types.ObjectId }[]>();
+
+    for (const group of tournament.groups) {
+      const standings = await calculateGroupStandings(tournamentId, group.name);
+      const qualified: { rank: number; teamId: mongoose.Types.ObjectId }[] = [];
+
+      // Top 2 takımı al
+      for (let i = 0; i < Math.min(2, standings.length); i++) {
+        if (standings[i]?.team) {
+          qualified.push({
+            rank: i + 1,
+            teamId: typeof standings[i].team === 'string' 
+              ? new mongoose.Types.ObjectId(standings[i].team)
+              : (standings[i].team as mongoose.Types.ObjectId)
+          });
+        }
+      }
+
+      qualifiedTeams.set(group.name, qualified);
+    }
+
+    // Knockout maçlarını bul ve güncelle
+    const knockoutMatches = await Match.find({
+      tournament: tournamentId,
+      stage: { $in: ['quarter_final', 'semi_final', 'final'] },
+      crossoverInfo: { $exists: true }
+    });
+
+    let updatedCount = 0;
+
+    for (const match of knockoutMatches) {
+      if (!match.crossoverInfo) continue;
+
+      const homeTeamGroup = match.crossoverInfo.homeTeamGroup;
+      const homeTeamRank = match.crossoverInfo.homeTeamRank;
+      const awayTeamGroup = match.crossoverInfo.awayTeamGroup;
+      const awayTeamRank = match.crossoverInfo.awayTeamRank;
+
+      const homeQualified = qualifiedTeams.get(homeTeamGroup);
+      const awayQualified = qualifiedTeams.get(awayTeamGroup);
+
+      if (homeQualified && awayQualified) {
+        const homeTeam = homeQualified.find(t => t.rank === homeTeamRank);
+        const awayTeam = awayQualified.find(t => t.rank === awayTeamRank);
+
+        if (homeTeam && awayTeam) {
+          // Sadece placeholder maçları güncelle (sonuç girilmemişse)
+          if (!match.score) {
+            match.homeTeam = homeTeam.teamId;
+            match.awayTeam = awayTeam.teamId;
+            await match.save();
+            updatedCount++;
+          }
+        }
+      }
+    }
+
+    res.json({
+      message: 'Knockout maçları nitelikli takımlarla başarıyla güncellendi.',
+      updatedMatches: updatedCount
+    });
+  } catch (error) {
+    console.error('Knockout maçları güncelleme hatası:', error);
+    res.status(500).json({ message: 'Knockout maçları güncellenirken bir hata oluştu.' });
   }
 };
