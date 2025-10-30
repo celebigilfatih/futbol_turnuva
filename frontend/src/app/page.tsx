@@ -249,10 +249,12 @@ export default function DashboardPage() {
                       <div className="flex items-center gap-1.5 text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 px-2 py-1 rounded-md">
                         <Clock className="h-3 w-3" />
                         <span>
-                          {new Date(match.date).toLocaleTimeString('tr-TR', {
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          })}
+                          {(() => {
+                            const d = new Date(match.date);
+                            const hours = String(d.getUTCHours()).padStart(2, '0');
+                            const minutes = String(d.getUTCMinutes()).padStart(2, '0');
+                            return `${hours}:${minutes}`;
+                          })()}
                         </span>
                       </div>
                     </div>

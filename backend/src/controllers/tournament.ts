@@ -348,9 +348,8 @@ export const generateFixture = async (req: Request, res: Response) => {
         }
       }
       
-      // Generate afternoon slots starting from the later of: afterno onStart OR configured start time
-      let afternoonActualStart = new Date(Math.max(afternoonStart.getTime(), morningStart.getTime()));
-      let t = new Date(afternoonActualStart);
+      // Generate afternoon slots
+      let t = new Date(afternoonStart);
       while (t < dayEnd) {
         // Store times directly without UTC conversion
         slots.push({ time: new Date(t), index: slotIndex });
@@ -1405,12 +1404,10 @@ export const generateQuarterFinals = async (req: Request, res: Response) => {
     for (const group of tournament.groups) {
       const groupStandings = await calculateGroupStandings(tournament._id, group.name);
       if (groupStandings[0]?.team) {
-        const teamId = (typeof groupStandings[0].team === 'string') ? new mongoose.Types.ObjectId(groupStandings[0].team) : (groupStandings[0].team as mongoose.Types.ObjectId);
-        qualifiedTeams.push(teamId);
+        qualifiedTeams.push(groupStandings[0].team);
       }
       if (groupStandings[1]?.team) {
-        const teamId = (typeof groupStandings[1].team === 'string') ? new mongoose.Types.ObjectId(groupStandings[1].team) : (groupStandings[1].team as mongoose.Types.ObjectId);
-        qualifiedTeams.push(teamId);
+        qualifiedTeams.push(groupStandings[1].team);
       }
       groupNames.push(group.name);
     }
@@ -1508,7 +1505,7 @@ export const generateQuarterFinals = async (req: Request, res: Response) => {
 // Knockout maçlarındaki takımları nitelikli takımlarla güncelle
 export const updateKnockoutTeamsWithQualified = async (req: Request, res: Response) => {
   try {
-    const tournamentId = req.params.id;
+    const tournamentId = new mongoose.Types.ObjectId(req.params.id);
     const tournament = await Tournament.findById(tournamentId);
 
     if (!tournament) {
@@ -1541,9 +1538,7 @@ export const updateKnockoutTeamsWithQualified = async (req: Request, res: Respon
         if (standings[i]?.team) {
           qualified.push({
             rank: i + 1,
-            teamId: typeof standings[i].team === 'string' 
-              ? new mongoose.Types.ObjectId(standings[i].team)
-              : (standings[i].team as mongoose.Types.ObjectId)
+            teamId: standings[i].team
           });
         }
       }

@@ -48,13 +48,13 @@ export const get = async <T>(endpoint: string): Promise<ApiResponse<T>> => {
 };
 
 // POST isteği
-export const post = async <T>(endpoint: string, data: Record<string, unknown>): Promise<ApiResponse<T>> => {
+export const post = async <T>(endpoint: string, data?: unknown): Promise<ApiResponse<T>> => {
   const response = await api.post<ApiResponse<T>>(endpoint, data);
   return response.data;
 };
 
 // PUT isteği
-export const put = async <T>(endpoint: string, data: Record<string, unknown>): Promise<ApiResponse<T>> => {
+export const put = async <T>(endpoint: string, data?: unknown): Promise<ApiResponse<T>> => {
   const response = await api.put<ApiResponse<T>>(endpoint, data);
   return response.data;
 };

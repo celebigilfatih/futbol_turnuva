@@ -20,7 +20,6 @@ COPY package.json package-lock.json ./
 
 # Copy source files (this will be cached if only source code changes)
 COPY src ./src
-COPY public ./public
 COPY next.config.js .
 COPY tsconfig.json .
 COPY tailwind.config.js .
@@ -45,8 +44,6 @@ ENV NEXT_STANDALONE true
 
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
-
-COPY --from=builder /app/public ./public
 
 # Set the correct permission for prerender cache
 RUN mkdir .next

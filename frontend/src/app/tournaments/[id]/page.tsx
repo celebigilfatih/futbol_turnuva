@@ -234,10 +234,12 @@ export default function TournamentDetailsPage({ params }: { params: Promise<{ id
                       <div className="flex items-center gap-2">
                         <Clock className="h-4 w-4 text-green-500" />
                         <span className="font-medium">
-                          {match?.date ? new Date(match.date).toLocaleTimeString('tr-TR', {
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          }) : '-'}
+                          {match?.date ? (() => {
+                            const d = new Date(match.date);
+                            const hours = String(d.getUTCHours()).padStart(2, '0');
+                            const minutes = String(d.getUTCMinutes()).padStart(2, '0');
+                            return `${hours}:${minutes}`;
+                          })() : '-'}
                         </span>
                       </div>
                     </div>

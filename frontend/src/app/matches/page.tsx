@@ -298,10 +298,12 @@ export default function MatchesPage() {
                               </span>
                             </div>
                             <span className="text-sm font-medium">
-                              {new Date(match.date).toLocaleTimeString('tr-TR', {
-                                hour: '2-digit',
-                                minute: '2-digit'
-                              })}
+                              {(() => {
+                                const d = new Date(match.date);
+                                const hours = String(d.getUTCHours()).padStart(2, '0');
+                                const minutes = String(d.getUTCMinutes()).padStart(2, '0');
+                                return `${hours}:${minutes}`;
+                              })()}
                             </span>
                           </div>
                           <div className="flex items-center justify-between">

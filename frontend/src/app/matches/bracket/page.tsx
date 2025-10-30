@@ -111,14 +111,31 @@ export default function BracketPage() {
   const goldFinals = matches.filter(match => match.stage === 'gold_final');
   const silverFinals = matches.filter(match => match.stage === 'silver_final');
   
+  console.log('Knockout matches:', {
+    quarterFinals: quarterFinals.length,
+    semiFinals: semiFinals.length,
+    goldFinals: goldFinals.length,
+    silverFinals: silverFinals.length,
+    totalMatches: matches.length
+  });
+  
   // Separate Silver and Gold brackets
   // Silver bracket: Quarter finals with rank 3 vs 4
   const silverQuarterFinals = quarterFinals.filter(match => {
     const crossoverInfo = match.crossoverInfo;
-    return crossoverInfo && (
+    const isSilver = crossoverInfo && (
       (crossoverInfo.homeTeamRank === 3 && crossoverInfo.awayTeamRank === 4) ||
       (crossoverInfo.homeTeamRank === 4 && crossoverInfo.awayTeamRank === 3)
     );
+    if (crossoverInfo) {
+      console.log('QF match:', {
+        id: match._id,
+        homeRank: crossoverInfo.homeTeamRank,
+        awayRank: crossoverInfo.awayTeamRank,
+        isSilver
+      });
+    }
+    return isSilver;
   });
   
   // Gold bracket: Quarter finals with rank 1 vs 2
@@ -133,7 +150,15 @@ export default function BracketPage() {
   // Silver semi finals
   const silverSemiFinals = semiFinals.filter(match => {
     const crossoverInfo = match.crossoverInfo;
-    return crossoverInfo && crossoverInfo.homeTeamGroup?.includes('Silver');
+    const isSilver = crossoverInfo && crossoverInfo.homeTeamGroup?.includes('Silver');
+    if (crossoverInfo) {
+      console.log('SF match:', {
+        id: match._id,
+        homeGroup: crossoverInfo.homeTeamGroup,
+        isSilver
+      });
+    }
+    return isSilver;
   });
   
   // Gold semi finals
@@ -145,6 +170,15 @@ export default function BracketPage() {
   // Finals (already separated by stage)
   const silverFinal = silverFinals[0];
   const goldFinal = goldFinals[0];
+  
+  console.log('Filtered brackets:', {
+    silverQF: silverQuarterFinals.length,
+    goldQF: goldQuarterFinals.length,
+    silverSF: silverSemiFinals.length,
+    goldSF: goldSemiFinals.length,
+    silverFinal: !!silverFinal,
+    goldFinal: !!goldFinal
+  });
 
   const MatchCard = ({ match, className = '' }: { match: ExtendedMatch; className?: string }) => {
     const homeTeamName = getTeamDisplay(match, true, matches);
@@ -165,10 +199,10 @@ export default function BracketPage() {
     
     const formatMatchDate = (date: string | Date) => {
       const d = new Date(date);
-      const day = String(d.getDate()).padStart(2, '0');
-      const month = String(d.getMonth() + 1).padStart(2, '0');
-      const hours = String(d.getHours()).padStart(2, '0');
-      const minutes = String(d.getMinutes()).padStart(2, '0');
+      const day = String(d.getUTCDate()).padStart(2, '0');
+      const month = String(d.getUTCMonth() + 1).padStart(2, '0');
+      const hours = String(d.getUTCHours()).padStart(2, '0');
+      const minutes = String(d.getUTCMinutes()).padStart(2, '0');
       return `${day}.${month} ${hours}:${minutes}`;
     };
     

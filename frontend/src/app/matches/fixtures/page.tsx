@@ -162,7 +162,7 @@ export default function FixturesPage() {
       const newHour = parseInt(newHourStr, 10);
       const newMinute = parseInt(newMinuteStr, 10);
       const newDate = new Date(oldDate);
-      newDate.setHours(newHour, newMinute, 0, 0);
+      newDate.setUTCHours(newHour, newMinute, 0, 0);
       const delta = newDate.getTime() - oldDate.getTime();
       updated[index] = { ...match, date: newDate.toISOString() };
       for (let i = index + 1; i < updated.length; i++) {
@@ -257,12 +257,15 @@ export default function FixturesPage() {
       cell: ({ row }) => {
         if (editMode) {
           const currentTime = new Date(row.getValue('date'));
-          const hours = String(currentTime.getHours()).padStart(2, '0');
-          const minutes = String(currentTime.getMinutes()).padStart(2, '0');
+          const hours = String(currentTime.getUTCHours()).padStart(2, '0');
+          const minutes = String(currentTime.getUTCMinutes()).padStart(2, '0');
           const timeStr = `${hours}:${minutes}`;
           return <Input type="time" value={timeStr} onChange={(e) => handleTimeChange(row.index, e.target.value)} />;
         } else {
-          return new Date(row.getValue('date')).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+          const date = new Date(row.getValue('date'));
+          const hours = String(date.getUTCHours()).padStart(2, '0');
+          const minutes = String(date.getUTCMinutes()).padStart(2, '0');
+          return `${hours}:${minutes}`;
         }
       },
       enableSorting: true,
