@@ -509,11 +509,16 @@ export const generateFixture = async (req: Request, res: Response) => {
       
       // SEMI FINALS
       const semiFinals: PartialFixtureMatch[] = [];
-      const numSilverQFs = groupNames.length; // 2 Silver QFs per group pair
-      const numGoldQFs = groupNames.length;   // 2 Gold QFs per group pair
       
-      // Silver Semi Final 1: Winner of Silver QF1 vs Winner of Silver QF2
-      if (numSilverQFs >= 2) {
+      // For 2 groups (A, B): 4 Silver QFs + 4 Gold QFs = 8 total
+      // For 4 groups (A, B, C, D): 4 Silver QFs + 4 Gold QFs = 8 total
+      // Silver QFs are first half, Gold QFs are second half
+      
+      const totalGroupPairs = Math.floor(groupNames.length / 2);
+      const qfsPerBracket = totalGroupPairs * 2; // 2 QFs per group pair
+      
+      // Silver Semi Final 1: Winner of Silver QF1 vs Winner of Silver QF2  
+      if (qfsPerBracket >= 2) {
         semiFinals.push({
           tournament: tournament._id,
           homeTeam: quarterFinals[0].homeTeam,
@@ -527,7 +532,7 @@ export const generateFixture = async (req: Request, res: Response) => {
       }
       
       // Silver Semi Final 2 (if 4 groups): Winner of Silver QF3 vs Winner of Silver QF4
-      if (numSilverQFs >= 4) {
+      if (qfsPerBracket >= 4) {
         semiFinals.push({
           tournament: tournament._id,
           homeTeam: quarterFinals[2].homeTeam,
@@ -541,8 +546,8 @@ export const generateFixture = async (req: Request, res: Response) => {
       }
       
       // Gold Semi Final 1: Winner of Gold QF1 vs Winner of Gold QF2
-      const goldQFStart = numSilverQFs;
-      if (numGoldQFs >= 2) {
+      const goldQFStart = qfsPerBracket;
+      if (qfsPerBracket >= 2) {
         semiFinals.push({
           tournament: tournament._id,
           homeTeam: quarterFinals[goldQFStart].homeTeam,
@@ -556,7 +561,7 @@ export const generateFixture = async (req: Request, res: Response) => {
       }
       
       // Gold Semi Final 2 (if 4 groups): Winner of Gold QF3 vs Winner of Gold QF4
-      if (numGoldQFs >= 4) {
+      if (qfsPerBracket >= 4) {
         semiFinals.push({
           tournament: tournament._id,
           homeTeam: quarterFinals[goldQFStart + 2].homeTeam,
@@ -585,31 +590,71 @@ export const generateFixture = async (req: Request, res: Response) => {
       knockoutMatches = [...knockoutMatches, ...semiFinals];
       
       // FINALS
+      // semiFinals array order:
+      // [0]: Silver SF1, [1]: Silver SF2 (if 4 groups), [2 or 1]: Gold SF1, [3 or 2]: Gold SF2 (if 4 groups)
+      
       if (semiFinals.length >= 2) {
-        // Silver Final: Winner of Silver SF1 vs Winner of Silver SF2
-        const silverFinal: PartialFixtureMatch = {
-          tournament: tournament._id,
-          homeTeam: semiFinals[0].homeTeam,
-          awayTeam: semiFinals[1]?.homeTeam || semiFinals[0].awayTeam,
-          stage: 'silver_final',
-          status: 'scheduled',
-          extraTimeEnabled: tournament.extraTimeEnabled,
-          penaltyShootoutEnabled: tournament.penaltyShootoutEnabled,
-          crossoverInfo: { homeTeamGroup: 'Silver_SF1', homeTeamRank: 1, awayTeamGroup: 'Silver_SF2', awayTeamRank: 1 }
-        };
+        // Determine indices based on number of semi-finals
+        // If 2 groups: [0] Silver SF1, [1] Gold SF1 -> No Silver/Gold finals (only 1 SF each)
+        // If 4 groups: [0] Silver SF1, [1] Silver SF2, [2] Gold SF1, [3] Gold SF2
         
-        // Gold Final: Winner of Gold SF1 vs Winner of Gold SF2
-        const goldSFIndex = semiFinals.length >= 4 ? 2 : 1;
-        const goldFinal: PartialFixtureMatch = {
-          tournament: tournament._id,
-          homeTeam: semiFinals[goldSFIndex]?.homeTeam || semiFinals[0].homeTeam,
-          awayTeam: semiFinals[goldSFIndex + 1]?.homeTeam || semiFinals[1]?.homeTeam || semiFinals[0].awayTeam,
-          stage: 'gold_final',
-          status: 'scheduled',
-          extraTimeEnabled: tournament.extraTimeEnabled,
-          penaltyShootoutEnabled: tournament.penaltyShootoutEnabled,
-          crossoverInfo: { homeTeamGroup: 'Gold_SF1', homeTeamRank: 1, awayTeamGroup: 'Gold_SF2', awayTeamRank: 1 }
-        };
+        const hasTwoSilverSFs = semiFinals.length >= 4;
+        
+        // Silver Final
+        let silverFinal: PartialFixtureMatch;
+        if (hasTwoSilverSFs) {
+          // Winner of Silver SF1 vs Winner of Silver SF2
+          silverFinal = {
+            tournament: tournament._id,
+            homeTeam: semiFinals[0].homeTeam,
+            awayTeam: semiFinals[1].homeTeam,
+            stage: 'silver_final',
+            status: 'scheduled',
+            extraTimeEnabled: tournament.extraTimeEnabled,
+            penaltyShootoutEnabled: tournament.penaltyShootoutEnabled,
+            crossoverInfo: { homeTeamGroup: 'Silver_SF1', homeTeamRank: 1, awayTeamGroup: 'Silver_SF2', awayTeamRank: 1 }
+          };
+        } else {
+          // Only 1 Silver SF (winner goes to final)
+          silverFinal = {
+            tournament: tournament._id,
+            homeTeam: semiFinals[0].homeTeam,
+            awayTeam: semiFinals[0].awayTeam,
+            stage: 'silver_final',
+            status: 'scheduled',
+            extraTimeEnabled: tournament.extraTimeEnabled,
+            penaltyShootoutEnabled: tournament.penaltyShootoutEnabled,
+            crossoverInfo: { homeTeamGroup: 'Silver_SF1', homeTeamRank: 1, awayTeamGroup: 'Silver_SF1', awayTeamRank: 2 }
+          };
+        }
+        
+        // Gold Final
+        let goldFinal: PartialFixtureMatch;
+        if (hasTwoSilverSFs) {
+          // 4 groups: Gold SFs are at index [2] and [3]
+          goldFinal = {
+            tournament: tournament._id,
+            homeTeam: semiFinals[2].homeTeam,
+            awayTeam: semiFinals[3].homeTeam,
+            stage: 'gold_final',
+            status: 'scheduled',
+            extraTimeEnabled: tournament.extraTimeEnabled,
+            penaltyShootoutEnabled: tournament.penaltyShootoutEnabled,
+            crossoverInfo: { homeTeamGroup: 'Gold_SF1', homeTeamRank: 1, awayTeamGroup: 'Gold_SF2', awayTeamRank: 1 }
+          };
+        } else {
+          // 2 groups: Gold SF is at index [1]
+          goldFinal = {
+            tournament: tournament._id,
+            homeTeam: semiFinals[1].homeTeam,
+            awayTeam: semiFinals[1].awayTeam,
+            stage: 'gold_final',
+            status: 'scheduled',
+            extraTimeEnabled: tournament.extraTimeEnabled,
+            penaltyShootoutEnabled: tournament.penaltyShootoutEnabled,
+            crossoverInfo: { homeTeamGroup: 'Gold_SF1', homeTeamRank: 1, awayTeamGroup: 'Gold_SF1', awayTeamRank: 2 }
+          };
+        }
         
         // Schedule finals
         let finalDate = new Date(sfDate);
