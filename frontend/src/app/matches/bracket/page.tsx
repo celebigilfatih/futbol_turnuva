@@ -78,9 +78,17 @@ export default function BracketPage() {
     queryKey: ['matches', activeTournament?._id],
     queryFn: async () => {
       if (!activeTournament?._id) return [];
-      const response = await matchService.getByTournament(activeTournament._id);
-      console.log('Bracket matches loaded:', response.data?.length);
-      return response.data as ExtendedMatch[];
+      // Use the matches endpoint with tournament filter
+      const response = await matchService.getAll();
+      console.log('All matches response:', response);
+      console.log('All matches data length:', response?.data?.length);
+      // Filter matches by tournament ID on the client side
+      const allMatches = response?.data || [];
+      const tournamentMatches = allMatches.filter(
+        m => typeof m.tournament !== 'string' && m.tournament._id === activeTournament._id
+      );
+      console.log('Bracket matches loaded:', tournamentMatches.length);
+      return tournamentMatches as ExtendedMatch[];
     },
     enabled: !!activeTournament?._id,
     refetchInterval: 5000, // Auto-refresh every 5 seconds
@@ -127,14 +135,6 @@ export default function BracketPage() {
       (crossoverInfo.homeTeamRank === 3 && crossoverInfo.awayTeamRank === 4) ||
       (crossoverInfo.homeTeamRank === 4 && crossoverInfo.awayTeamRank === 3)
     );
-    if (crossoverInfo) {
-      console.log('QF match:', {
-        id: match._id,
-        homeRank: crossoverInfo.homeTeamRank,
-        awayRank: crossoverInfo.awayTeamRank,
-        isSilver
-      });
-    }
     return isSilver;
   });
   
@@ -147,24 +147,20 @@ export default function BracketPage() {
     );
   });
   
-  // Silver semi finals
+  // Silver semi finals - check for 'Silver' in group name OR ranks from Silver QF
   const silverSemiFinals = semiFinals.filter(match => {
     const crossoverInfo = match.crossoverInfo;
-    const isSilver = crossoverInfo && crossoverInfo.homeTeamGroup?.includes('Silver');
-    if (crossoverInfo) {
-      console.log('SF match:', {
-        id: match._id,
-        homeGroup: crossoverInfo.homeTeamGroup,
-        isSilver
-      });
-    }
-    return isSilver;
+    if (!crossoverInfo) return false;
+    // Check if homeTeamGroup contains 'Silver' (e.g., 'Silver_QF1')
+    return crossoverInfo.homeTeamGroup?.includes('Silver');
   });
   
-  // Gold semi finals
+  // Gold semi finals - check for 'Gold' in group name OR ranks from Gold QF
   const goldSemiFinals = semiFinals.filter(match => {
     const crossoverInfo = match.crossoverInfo;
-    return crossoverInfo && crossoverInfo.homeTeamGroup?.includes('Gold');
+    if (!crossoverInfo) return false;
+    // Check if homeTeamGroup contains 'Gold' (e.g., 'Gold_QF1')
+    return crossoverInfo.homeTeamGroup?.includes('Gold');
   });
   
   // Finals (already separated by stage)
